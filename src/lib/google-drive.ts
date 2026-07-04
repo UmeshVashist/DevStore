@@ -731,8 +731,9 @@ export async function permanentlyDeleteFile(userId: string, fileId: string): Pro
   await getUserFolders(userId);
   try {
     await drive.files.delete({ ...DRIVE_OPTS, fileId });
-  } catch (err: any) {
-    if (err.status === 403 || err.code === 403) {
+  } catch (err) {
+    const error = err as { status?: number; code?: number };
+    if (error.status === 403 || error.code === 403) {
       try {
         const file = await drive.files.get({
           ...DRIVE_OPTS,
