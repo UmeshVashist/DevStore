@@ -29,6 +29,9 @@ interface FileCardProps {
   onMouseLeave?: () => void;
   isTrash?: boolean;
   index?: number;
+  selected?: boolean;
+  onSelectToggle?: () => void;
+  anySelected?: boolean;
 }
 
 export function FileCard({
@@ -43,6 +46,9 @@ export function FileCard({
   onMouseLeave,
   isTrash = false,
   index = 0,
+  selected = false,
+  onSelectToggle,
+  anySelected = false,
 }: FileCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const daysLeft = file.deletedAt
@@ -54,10 +60,39 @@ export function FileCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="glass-card p-4 group relative"
+      className={`glass-card p-4 group relative border transition-all cursor-pointer ${
+        selected ? "border-indigo-500/80 bg-indigo-500/5 shadow-indigo-500/5" : "border-white/5"
+      }`}
+      onClick={(e) => {
+        if (anySelected && onSelectToggle) {
+          e.stopPropagation();
+          onSelectToggle();
+        } else if (!isTrash) {
+          onPreview(file);
+        }
+      }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
+      {onSelectToggle && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectToggle();
+          }}
+          className={`absolute top-2 left-2 w-5 h-5 rounded-full border transition-all flex items-center justify-center z-10 cursor-pointer ${
+            selected
+              ? "bg-indigo-500 border-indigo-500 text-white"
+              : "border-white/20 bg-black/40 opacity-0 group-hover:opacity-100"
+          } ${anySelected ? "opacity-100" : ""}`}
+        >
+          {selected && (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+      )}
       <div className="flex items-start gap-3">
         <FileIcon category={file.category} size="md" />
         <div className="flex-1 min-w-0">
@@ -75,12 +110,17 @@ export function FileCard({
         </div>
 
         <div className="relative">
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="p-1.5 rounded-lg hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
-          >
-            <MoreVertical className="w-4 h-4 text-white/60" />
-          </button>
+          {!anySelected && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(!menuOpen);
+              }}
+              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
+            >
+              <MoreVertical className="w-4 h-4 text-white/60" />
+            </button>
+          )}
 
           {menuOpen && (
             <>
@@ -111,19 +151,21 @@ export function FileCard({
         </div>
       </div>
 
-      <div className="flex gap-2 mt-3 pt-3 border-t border-white/10">
-        {!isTrash ? (
-          <>
-            <QuickButton icon={Eye} label="Open" onClick={() => onPreview(file)} />
-            <QuickButton icon={Download} label="Download" onClick={() => onDownload(file)} />
-            <QuickButton icon={Trash2} label="Delete" onClick={() => onDelete(file)} danger />
-          </>
-        ) : (
-          onRestore && (
-            <QuickButton icon={RotateCcw} label="Restore" onClick={() => onRestore(file)} primary />
-          )
-        )}
-      </div>
+      {!anySelected && (
+        <div className="flex gap-2 mt-3 pt-3 border-t border-white/10">
+          {!isTrash ? (
+            <>
+              <QuickButton icon={Eye} label="Open" onClick={(e) => { e.stopPropagation(); onPreview(file); }} />
+              <QuickButton icon={Download} label="Download" onClick={(e) => { e.stopPropagation(); onDownload(file); }} />
+              <QuickButton icon={Trash2} label="Delete" onClick={(e) => { e.stopPropagation(); onDelete(file); }} danger />
+            </>
+          ) : (
+            onRestore && (
+              <QuickButton icon={RotateCcw} label="Restore" onClick={(e) => { e.stopPropagation(); onRestore(file); }} primary />
+            )
+          )}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -161,13 +203,13 @@ function QuickButton({
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   danger?: boolean;
   primary?: boolean;
 }) {
   return (
     <button
-      onClick={onClick}
+      onClick={(e) => onClick(e)}
       className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${
         primary
           ? "bg-indigo-500/30 text-indigo-200 hover:bg-indigo-500/50"

@@ -16,6 +16,22 @@ import {
   getDriveClient,
 } from "./google-auth";
 
+// Memory caches to significantly boost performance on Vercel
+interface FileCountsCache {
+  counts: Record<string, number>;
+  timestamp: number;
+}
+let fileCountsCache: FileCountsCache | null = null;
+const COUNTS_CACHE_TTL = 30 * 1000; // 30 seconds
+
+const ancestorRelationCache = new Map<string, { result: boolean; timestamp: number }>();
+const RELATION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function clearRelationCache(): void {
+  ancestorRelationCache.clear();
+  fileCountsCache = null; // Clear file counts cache too to force update on modifications
+}
+
 function escapeQueryValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
@@ -75,11 +91,21 @@ async function isUnderFolder(
   itemId: string,
   ancestorId: string
 ): Promise<boolean> {
+  const cacheKey = `${itemId}:${ancestorId}`;
+  const now = Date.now();
+  const cached = ancestorRelationCache.get(cacheKey);
+  if (cached && (now - cached.timestamp < RELATION_CACHE_TTL)) {
+    return cached.result;
+  }
+
   const drive = getDriveClient();
   let currentId: string | null = itemId;
 
   while (currentId) {
-    if (currentId === ancestorId) return true;
+    if (currentId === ancestorId) {
+      ancestorRelationCache.set(cacheKey, { result: true, timestamp: now });
+      return true;
+    }
 
     try {
       const res = (await drive.files.get({
@@ -88,13 +114,18 @@ async function isUnderFolder(
         fields: "parents",
       })) as { data: { parents?: string[] | null } };
       const parents = res.data.parents || [];
-      if (parents.includes(ancestorId)) return true;
+      if (parents.includes(ancestorId)) {
+        ancestorRelationCache.set(cacheKey, { result: true, timestamp: now });
+        return true;
+      }
       currentId = parents[0] || null;
     } catch {
+      ancestorRelationCache.set(cacheKey, { result: false, timestamp: now });
       return false;
     }
   }
 
+  ancestorRelationCache.set(cacheKey, { result: false, timestamp: now });
   return false;
 }
 
@@ -138,7 +169,50 @@ function mapDriveFile(file: {
   };
 }
 
-async function getFolderFileCounts(drive: drive_v3.Drive): Promise<Record<string, number>> {
+async function getFolderFileCounts(
+  drive: drive_v3.Drive,
+  folderIds?: string[]
+): Promise<Record<string, number>> {
+  const now = Date.now();
+  
+  if (fileCountsCache && (now - fileCountsCache.timestamp < COUNTS_CACHE_TTL)) {
+    if (folderIds) {
+      const result: Record<string, number> = {};
+      for (const id of folderIds) {
+        result[id] = fileCountsCache.counts[id] || 0;
+      }
+      return result;
+    }
+    return { ...fileCountsCache.counts };
+  }
+
+  if (folderIds && folderIds.length > 0 && folderIds.length <= 8) {
+    const counts: Record<string, number> = {};
+    await Promise.all(
+      folderIds.map(async (id) => {
+        try {
+          const res = await drive.files.list({
+            ...DRIVE_LIST_OPTS,
+            q: `'${id}' in parents and mimeType != '${FOLDER_MIME}' and trashed=false`,
+            fields: "files(id)",
+            pageSize: 100,
+          });
+          counts[id] = res.data.files?.length || 0;
+        } catch (err) {
+          console.error(`Error counting files for folder ${id}:`, err);
+          counts[id] = 0;
+        }
+      })
+    );
+    
+    if (!fileCountsCache) {
+      fileCountsCache = { counts: {}, timestamp: now };
+    }
+    Object.assign(fileCountsCache.counts, counts);
+    
+    return counts;
+  }
+
   const counts: Record<string, number> = {};
   try {
     let pageToken: string | undefined = undefined;
@@ -159,9 +233,23 @@ async function getFolderFileCounts(drive: drive_v3.Drive): Promise<Record<string
       }
       pageToken = res.data.nextPageToken || undefined;
     } while (pageToken);
+    
+    fileCountsCache = {
+      counts,
+      timestamp: now,
+    };
   } catch (err) {
     console.error("Error fetching file counts:", err);
   }
+
+  if (folderIds) {
+    const result: Record<string, number> = {};
+    for (const id of folderIds) {
+      result[id] = counts[id] || 0;
+    }
+    return result;
+  }
+  
   return counts;
 }
 
@@ -208,7 +296,11 @@ export async function listBrowseItems(
     pageSize: 200,
   });
 
-  const fileCounts = await getFolderFileCounts(drive);
+  const subfolderIds = (res.data.files || [])
+    .filter((file) => file.mimeType === FOLDER_MIME)
+    .map((file) => file.id!);
+
+  const fileCounts = await getFolderFileCounts(drive, subfolderIds);
   const items: DriveItem[] = [];
 
   for (const file of res.data.files || []) {
@@ -298,6 +390,7 @@ export async function createUserFolder(
     fields: "id,name,createdTime,modifiedTime,parents",
   });
 
+  clearRelationCache();
   return mapDriveFolder(res.data);
 }
 
@@ -392,6 +485,7 @@ export async function uploadFile(
       fields: "id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents",
     });
 
+    clearRelationCache();
     return mapDriveFile(res.data);
   } catch (error) {
     throw new Error(formatDriveError(error));
@@ -498,6 +592,7 @@ export async function deleteFile(userId: string, fileId: string): Promise<void> 
       },
     },
   });
+  clearRelationCache();
 }
 
 export async function deleteFolder(userId: string, folderId: string): Promise<void> {
@@ -529,6 +624,7 @@ export async function deleteFolder(userId: string, folderId: string): Promise<vo
       },
     },
   });
+  clearRelationCache();
 }
 
 export async function restoreFile(userId: string, fileId: string): Promise<DriveFile> {
@@ -560,6 +656,8 @@ export async function restoreFile(userId: string, fileId: string): Promise<Drive
       appProperties: {},
     },
   });
+
+  clearRelationCache();
 
   const updated = await drive.files.get({
     ...DRIVE_OPTS,
@@ -600,6 +698,8 @@ export async function restoreFolder(userId: string, folderId: string): Promise<D
     },
   });
 
+  clearRelationCache();
+
   const updated = await drive.files.get({
     ...DRIVE_OPTS,
     fileId: folderId,
@@ -613,6 +713,7 @@ export async function permanentlyDeleteFile(userId: string, fileId: string): Pro
   const drive = getDriveClient();
   await getUserFolders(userId);
   await drive.files.delete({ ...DRIVE_OPTS, fileId });
+  clearRelationCache();
 }
 
 export async function purgeExpiredTrash(userId: string): Promise<number> {
@@ -637,6 +738,10 @@ export async function purgeExpiredTrash(userId: string): Promise<number> {
       await drive.files.delete({ ...DRIVE_OPTS, fileId: file.id! });
       purged++;
     }
+  }
+
+  if (purged > 0) {
+    clearRelationCache();
   }
 
   return purged;
@@ -672,6 +777,7 @@ export async function copyFile(
       parents: [destId],
     },
   });
+  clearRelationCache();
   return res.data;
 }
 
@@ -718,6 +824,7 @@ export async function copyFolder(
     }
   }
 
+  clearRelationCache();
   return newFolderId;
 }
 
@@ -748,6 +855,7 @@ export async function moveItem(
     removeParents: previousParents || undefined,
     fields: "id, parents",
   });
+  clearRelationCache();
 }
 
 export { getDriveAuthMode };

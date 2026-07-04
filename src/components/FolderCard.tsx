@@ -18,6 +18,9 @@ interface FolderCardProps {
   onMouseLeave?: () => void;
   isTrash?: boolean;
   index?: number;
+  selected?: boolean;
+  onSelectToggle?: () => void;
+  anySelected?: boolean;
 }
 
 export function FolderCard({
@@ -31,6 +34,9 @@ export function FolderCard({
   onMouseLeave,
   isTrash = false,
   index = 0,
+  selected = false,
+  onSelectToggle,
+  anySelected = false,
 }: FolderCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const daysLeft = folder.deletedAt
@@ -42,11 +48,39 @@ export function FolderCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="glass-card p-4 group cursor-pointer relative"
-      onClick={() => !isTrash && onOpen(folder)}
+      className={`glass-card p-4 group cursor-pointer relative border transition-all ${
+        selected ? "border-indigo-500/80 bg-indigo-500/5 shadow-indigo-500/5" : "border-white/5"
+      }`}
+      onClick={(e) => {
+        if (anySelected && onSelectToggle) {
+          e.stopPropagation();
+          onSelectToggle();
+        } else if (!isTrash) {
+          onOpen(folder);
+        }
+      }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
+      {onSelectToggle && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectToggle();
+          }}
+          className={`absolute top-2 left-2 w-5 h-5 rounded-full border transition-all flex items-center justify-center z-10 cursor-pointer ${
+            selected
+              ? "bg-indigo-500 border-indigo-500 text-white"
+              : "border-white/20 bg-black/40 opacity-0 group-hover:opacity-100"
+          } ${anySelected ? "opacity-100" : ""}`}
+        >
+          {selected && (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+      )}
       <div className="flex items-start gap-3">
         <FileIcon category="folder" size="md" />
         <div className="flex-1 min-w-0">
@@ -66,7 +100,7 @@ export function FolderCard({
         </div>
 
         <div className="relative">
-          {!isTrash && (onDelete || onCopy || onCut) && (
+          {!anySelected && !isTrash && (onDelete || onCopy || onCut) && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -136,25 +170,27 @@ export function FolderCard({
           )}
         </div>
       </div>
-      <div className="flex gap-2 mt-3 pt-3 border-t border-white/10">
-        {isTrash && onRestore ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRestore(folder);
-            }}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium bg-indigo-500/30 text-indigo-200 hover:bg-indigo-500/50"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Restore
-          </button>
-        ) : (
-          <div className="flex items-center gap-1.5 text-xs text-white/50">
-            <Folder className="w-3.5 h-3.5" />
-            Click to open
-          </div>
-        )}
-      </div>
+      {!anySelected && (
+        <div className="flex gap-2 mt-3 pt-3 border-t border-white/10">
+          {isTrash && onRestore ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRestore(folder);
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium bg-indigo-500/30 text-indigo-200 hover:bg-indigo-500/50"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Restore
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs text-white/50">
+              <Folder className="w-3.5 h-3.5" />
+              Click to open
+            </div>
+          )}
+        </div>
+      )}
     </motion.div>
   );
 }

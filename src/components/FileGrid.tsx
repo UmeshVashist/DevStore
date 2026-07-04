@@ -20,6 +20,8 @@ interface FileGridProps {
   onHoverItem?: (item: DriveItem | null) => void;
   isTrash?: boolean;
   emptyMessage?: string;
+  selectedIds?: Set<string>;
+  onSelectToggle?: (item: DriveItem) => void;
 }
 
 export function FileGrid({
@@ -35,12 +37,16 @@ export function FileGrid({
   onHoverItem,
   isTrash = false,
   emptyMessage = "No files yet. Upload your first file!",
+  selectedIds,
+  onSelectToggle,
 }: FileGridProps) {
   const [search, setSearch] = useState("");
 
   const filtered = items.filter((item) =>
     item.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const anySelected = (selectedIds?.size || 0) > 0;
 
   if (loading) {
     return (
@@ -93,6 +99,9 @@ export function FileGrid({
                 onMouseLeave={() => onHoverItem?.(null)}
                 isTrash={isTrash}
                 index={index}
+                selected={selectedIds?.has(item.id)}
+                onSelectToggle={onSelectToggle ? () => onSelectToggle(item) : undefined}
+                anySelected={anySelected}
               />
             ) : (
               <FileCard
@@ -108,6 +117,9 @@ export function FileGrid({
                 onMouseLeave={() => onHoverItem?.(null)}
                 isTrash={isTrash}
                 index={index}
+                selected={selectedIds?.has(item.id)}
+                onSelectToggle={onSelectToggle ? () => onSelectToggle(item) : undefined}
+                anySelected={anySelected}
               />
             )
           )}
