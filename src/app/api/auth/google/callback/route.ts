@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
     request.cookies.get(OAUTH_REDIRECT_COOKIE)?.value ||
     getOAuthRedirectUri(request.nextUrl.origin);
 
+  let refreshTokenToPass: string | undefined = undefined;
   try {
     const oauth2 = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
     const { tokens } = await oauth2.getToken(code);
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
     if (!tokens.refresh_token) {
       return NextResponse.redirect(new URL("/setup/drive?error=no_refresh_token", baseUrl));
     }
+    refreshTokenToPass = tokens.refresh_token;
 
     oauth2.setCredentials(tokens);
 
@@ -56,6 +58,14 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "token_exchange";
     console.error("OAuth callback error:", e);
+
+    const isErofs = msg.includes("EROFS") || msg.toLowerCase().includes("read-only");
+    if (isErofs && refreshTokenToPass) {
+      return NextResponse.redirect(
+        new URL(`/setup/drive?error=erofs&token=${encodeURIComponent(refreshTokenToPass)}`, baseUrl)
+      );
+    }
+
     return NextResponse.redirect(
       new URL(`/setup/drive?error=${encodeURIComponent(msg)}`, baseUrl)
     );

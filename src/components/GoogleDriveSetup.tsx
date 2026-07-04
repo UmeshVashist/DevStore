@@ -65,6 +65,7 @@ function SetupContent() {
 
   const [redirectUri, setRedirectUri] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
 
   useEffect(() => {
     setRedirectUri(`${window.location.origin}/api/auth/google/callback`);
@@ -89,6 +90,15 @@ function SetupContent() {
     navigator.clipboard.writeText(redirectUri);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyToken = () => {
+    const token = searchParams.get("token");
+    if (token) {
+      navigator.clipboard.writeText(token);
+      setCopiedToken(true);
+      setTimeout(() => setCopiedToken(false), 2000);
+    }
   };
 
   if (status.loading) {
@@ -116,17 +126,39 @@ function SetupContent() {
           )}
 
           {error && (
-            <div className="p-3 rounded-xl bg-red-500/20 text-red-300 mb-4 text-sm">
+            <div className={`p-4 rounded-xl mb-4 text-sm ${error === "erofs" ? "bg-amber-500/20 text-amber-200 border border-amber-500/30" : "bg-red-500/20 text-red-300"}`}>
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                <div>
+                <div className="w-full">
                   {error === "missing_client" && "Client ID / Secret .env.local mein add karein."}
                   {error === "no_refresh_token" &&
                     "Refresh token nahi mila. Google Account → Security → Third-party access se app revoke karke dubara try karein."}
                   {error === "no_code" && "Google se code nahi aaya. Dubara Connect click karein."}
                   {error.includes("redirect_uri_mismatch") &&
                     "Redirect URI galat hai. Neeche wala URI Google Cloud Console mein add karein."}
-                  {!["missing_client", "no_refresh_token", "no_code"].includes(error) &&
+                  {error === "erofs" && (
+                    <div className="space-y-3">
+                      <p className="font-bold text-amber-300">Read-Only Filesystem Detected (Vercel/Serverless)</p>
+                      <p>Hum token ko server ki disk par save nahi kar sakte kyunki Vercel read-only hai.</p>
+                      <p>Apne Google account ko connect rakhne ke liye neeche diye gaye Refresh Token ko copy karein aur use apne Vercel Project ke dashboard par environment variable <strong>GOOGLE_OAUTH_REFRESH_TOKEN</strong> ke roop mein add karein:</p>
+                      <div className="flex items-center gap-2 bg-black/45 rounded-lg p-2 mt-1">
+                        <code className="text-amber-200 text-xs flex-1 break-all select-all">{searchParams.get("token")}</code>
+                        <button
+                          onClick={copyToken}
+                          className="p-1.5 rounded hover:bg-white/10 shrink-0"
+                          title="Copy Token"
+                        >
+                          {copiedToken ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <Copy className="w-4 h-4 text-white/60" />
+                          )}
+                        </button>
+                      </div>
+                      <p className="text-xs text-white/40 mt-1">Add karne ke baad Vercel par project redeploy/rebuild karein.</p>
+                    </div>
+                  )}
+                  {!["missing_client", "no_refresh_token", "no_code", "erofs"].includes(error) &&
                     !error.includes("redirect_uri_mismatch") &&
                     decodeURIComponent(error)}
                 </div>
