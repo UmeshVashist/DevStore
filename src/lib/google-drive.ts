@@ -133,9 +133,14 @@ export async function verifyUserOwnsFolder(
   userId: string,
   folderId: string
 ): Promise<boolean> {
-  const { filesFolderId } = await getUserFolders(userId);
+  const { filesFolderId, trashFolderId } = await getUserFolders(userId);
   if (folderId === filesFolderId) return true;
-  return isUnderFolder(folderId, filesFolderId);
+  if (folderId === trashFolderId) return true;
+
+  const inFiles = await isUnderFolder(folderId, filesFolderId);
+  if (inFiles) return true;
+
+  return isUnderFolder(folderId, trashFolderId);
 }
 
 function mapDriveFile(file: {
@@ -583,7 +588,7 @@ export async function deleteFile(userId: string, fileId: string): Promise<void> 
     ...DRIVE_OPTS,
     fileId,
     addParents: trashFolderId,
-    removeParents: parentsRes.data.parents?.join(",") || "",
+    removeParents: parentsRes.data.parents?.join(",") || undefined,
     requestBody: {
       appProperties: {
         deletedAt: new Date().toISOString(),
@@ -614,7 +619,7 @@ export async function deleteFolder(userId: string, folderId: string): Promise<vo
     ...DRIVE_OPTS,
     fileId: folderId,
     addParents: trashFolderId,
-    removeParents: parentsRes.data.parents?.join(",") || "",
+    removeParents: parentsRes.data.parents?.join(",") || undefined,
     requestBody: {
       appProperties: {
         deletedAt: new Date().toISOString(),
@@ -724,7 +729,32 @@ export async function restoreFolder(userId: string, folderId: string): Promise<D
 export async function permanentlyDeleteFile(userId: string, fileId: string): Promise<void> {
   const drive = getDriveClient();
   await getUserFolders(userId);
-  await drive.files.delete({ ...DRIVE_OPTS, fileId });
+  try {
+    await drive.files.delete({ ...DRIVE_OPTS, fileId });
+  } catch (err: any) {
+    if (err.status === 403 || err.code === 403) {
+      try {
+        const file = await drive.files.get({
+          ...DRIVE_OPTS,
+          fileId,
+          fields: "parents",
+        });
+        const parents = file.data.parents || [];
+        if (parents.length > 0) {
+          await drive.files.update({
+            ...DRIVE_OPTS,
+            fileId,
+            removeParents: parents.join(","),
+          });
+        }
+      } catch (innerErr) {
+        console.error("Failed to remove parents on delete fallback:", innerErr);
+        throw err;
+      }
+    } else {
+      throw err;
+    }
+  }
   clearRelationCache();
 }
 

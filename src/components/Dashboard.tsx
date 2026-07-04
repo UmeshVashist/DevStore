@@ -43,6 +43,24 @@ export function Dashboard() {
     });
   }, []);
 
+  const handleSelectAll = useCallback(() => {
+    const currentItems =
+      activeTab === "files"
+        ? items
+        : activeTab === "folders"
+        ? allFolders.filter((f) => !allFolders.some((p) => p.id === f.parentId))
+        : trashItems;
+
+    const allIds = currentItems.map((item) => item.id);
+    const allSelected = allIds.every((id) => selectedIds.has(id));
+
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allIds));
+    }
+  }, [activeTab, items, allFolders, trashItems, selectedIds]);
+
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), type === "error" ? 8000 : 4000);
@@ -545,6 +563,18 @@ export function Dashboard() {
                 <span className="bg-indigo-500/20 text-indigo-300 text-xs px-2.5 py-1 rounded-full font-bold">
                   {selectedItems.length} Selected
                 </span>
+                <button
+                  onClick={handleSelectAll}
+                  className="text-xs bg-white/10 hover:bg-white/20 text-white/95 px-2.5 py-1 rounded-lg transition-all border border-white/10 font-semibold"
+                >
+                  {selectedItems.length === (
+                    activeTab === "files"
+                      ? items.length
+                      : activeTab === "folders"
+                      ? allFolders.filter((f) => !allFolders.some((p) => p.id === f.parentId)).length
+                      : trashItems.length
+                  ) ? "Deselect All" : "Select All"}
+                </button>
               </div>
               
               <div className="h-6 w-px bg-white/10" />
