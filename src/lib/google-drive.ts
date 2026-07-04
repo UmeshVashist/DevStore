@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import { drive_v3 } from "googleapis";
 import { RETENTION_DAYS } from "./constants";
 import {
   DriveFile,
@@ -136,7 +137,7 @@ function mapDriveFile(file: {
   };
 }
 
-async function getFolderFileCounts(drive: any): Promise<Record<string, number>> {
+async function getFolderFileCounts(drive: drive_v3.Drive): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   try {
     let pageToken: string | undefined = undefined;
@@ -238,13 +239,7 @@ export async function listAllUserFolders(userId: string): Promise<DriveFolder[]>
 
   const topLevel = (res.data.files || []).map((f) => mapDriveFolder(f, fileCounts));
 
-  // Also collect nested folders (one level deep search via all folders under files root tree)
-  const allRes = await drive.files.list({
-    ...DRIVE_OPTS,
-    q: `mimeType='${FOLDER_MIME}' and trashed=false and '${filesFolderId}' in parents`,
-    fields: "files(id,name,createdTime,modifiedTime,parents)",
-    pageSize: 200,
-  });
+
 
   // Recursive fetch: get all folders by searching with filesFolderId as ancestor
   const folders: DriveFolder[] = [...topLevel];
@@ -659,7 +654,7 @@ export async function copyFile(
   userId: string,
   fileId: string,
   targetFolderId?: string
-): Promise<any> {
+): Promise<drive_v3.Schema$File> {
   const drive = getDriveClient();
   const { filesFolderId } = await getUserFolders(userId);
   const destId = targetFolderId || filesFolderId;

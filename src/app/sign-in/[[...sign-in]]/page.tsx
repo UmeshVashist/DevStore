@@ -1,7 +1,6 @@
 "use client";
 
 import { SignIn } from "@clerk/nextjs";
-import { Database } from "lucide-react";
 import { AuthRedirect } from "@/components/AuthRedirect";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 
