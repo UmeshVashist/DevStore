@@ -1,0 +1,449 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { DriveFile, DriveFolder, DriveItem, isDriveFolder } from "@/lib/file-types";
+import { Header } from "@/components/Header";
+import { FileUploader } from "@/components/FileUploader";
+import { FileGrid } from "@/components/FileGrid";
+import { FilePreviewModal } from "@/components/FilePreviewModal";
+import { TabBar, DashboardTab } from "@/components/TabBar";
+import { FolderPanel } from "@/components/FolderPanel";
+import { BreadcrumbNav } from "@/components/BreadcrumbNav";
+import { GoogleDriveBanner } from "@/components/GoogleDriveSetup";
+import { AlertCircle, CheckCircle2, Scissors, Copy } from "lucide-react";
+
+export function Dashboard() {
+  const [items, setItems] = useState<DriveItem[]>([]);
+  const [allFolders, setAllFolders] = useState<DriveFolder[]>([]);
+  const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState<DashboardTab>("files");
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string }[]>([]);
+  const [previewFile, setPreviewFile] = useState<DriveFile | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [clipboard, setClipboard] = useState<{
+    type: "copy" | "cut";
+    itemId: string;
+    itemType: "file" | "folder";
+    itemName: string;
+  } | null>(null);
+  const [hoveredItem, setHoveredItem] = useState<DriveItem | null>(null);
+
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), type === "error" ? 8000 : 4000);
+  };
+
+  const fetchFolders = useCallback(async () => {
+    const res = await fetch("/api/folders");
+    if (res.ok) {
+      const data = await res.json();
+      setAllFolders(data.folders || []);
+    }
+  }, []);
+
+  const fetchItems = useCallback(async (folderId?: string | null) => {
+    const url = folderId ? `/api/files?folderId=${folderId}` : "/api/files";
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      setItems(data.items || []);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast("error", data.error || "Failed to load files");
+    }
+  }, []);
+
+  const fetchTrash = useCallback(async () => {
+    const res = await fetch("/api/trash");
+    if (res.ok) {
+      const data = await res.json();
+      setTrashItems(data.items || data.files || []);
+    }
+  }, []);
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        fetchItems(currentFolderId),
+        fetchFolders(),
+        fetchTrash(),
+      ]);
+    } catch {
+      showToast("error", "Server not ready. Wait a moment and refresh the page.");
+    } finally {
+      setLoading(false);
+    }
+  }, [currentFolderId, fetchItems, fetchFolders, fetchTrash]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  const uploadFiles = async (
+    fileList: FileList,
+    folderId: string,
+    withRelativePath = false
+  ) => {
+    setUploading(true);
+    let successCount = 0;
+
+    for (const file of Array.from(fileList)) {
+      const formData = new FormData();
+      formData.append("file", file);
+      if (folderId && folderId !== "root") {
+        formData.append("folderId", folderId);
+      }
+      if (withRelativePath) {
+        const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+        if (relativePath) formData.append("relativePath", relativePath);
+      }
+
+      try {
+        const res = await fetch("/api/files", { method: "POST", body: formData });
+        if (res.ok) {
+          successCount++;
+        } else {
+          const data = await res.json();
+          showToast("error", data.error || `Failed to upload ${file.name}`);
+        }
+      } catch {
+        showToast("error", `Upload failed for ${file.name}`);
+      }
+    }
+
+    if (successCount > 0) {
+      showToast("success", `${successCount} file(s) uploaded successfully`);
+      await fetchAll();
+    }
+
+    setUploading(false);
+  };
+
+  const handleUpload = (files: FileList, folderId: string) =>
+    uploadFiles(files, folderId, false);
+
+  const handleUploadFolder = (files: FileList, folderId: string) =>
+    uploadFiles(files, folderId, true);
+
+  const handleCreateFolder = async (name: string, parentId?: string) => {
+    const res = await fetch("/api/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        parentId: parentId !== undefined ? parentId : (currentFolderId || undefined),
+      }),
+    });
+
+    if (res.ok) {
+      showToast("success", `Folder "${name}" created`);
+      await fetchAll();
+    } else {
+      const data = await res.json();
+      showToast("error", data.error || "Failed to create folder");
+    }
+  };
+
+  const handleCopy = useCallback((item: DriveItem) => {
+    setClipboard({
+      type: "copy",
+      itemId: item.id,
+      itemType: isDriveFolder(item) ? "folder" : "file",
+      itemName: item.name,
+    });
+    showToast("success", `Copied "${item.name}" to clipboard`);
+  }, []);
+
+  const handleCut = useCallback((item: DriveItem) => {
+    setClipboard({
+      type: "cut",
+      itemId: item.id,
+      itemType: isDriveFolder(item) ? "folder" : "file",
+      itemName: item.name,
+    });
+    showToast("success", `Cut "${item.name}" to clipboard`);
+  }, []);
+
+  const handlePaste = useCallback(async () => {
+    if (!clipboard) return;
+    try {
+      const res = await fetch("/api/files/paste", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: clipboard.type,
+          itemId: clipboard.itemId,
+          itemType: clipboard.itemType,
+          targetFolderId: currentFolderId || "root",
+        }),
+      });
+
+      if (res.ok) {
+        showToast("success", `Pasted "${clipboard.itemName}" successfully`);
+        if (clipboard.type === "cut") {
+          setClipboard(null);
+        }
+        await fetchAll();
+      } else {
+        const data = await res.json();
+        showToast("error", data.error || "Paste failed");
+      }
+    } catch {
+      showToast("error", "Paste failed");
+    }
+  }, [clipboard, currentFolderId, fetchAll]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA" ||
+        (document.activeElement as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+
+      const isCtrl = e.ctrlKey || e.metaKey;
+      if (isCtrl) {
+        if (e.key === "c" || e.key === "C") {
+          if (hoveredItem) {
+            e.preventDefault();
+            handleCopy(hoveredItem);
+          }
+        } else if (e.key === "x" || e.key === "X") {
+          if (hoveredItem) {
+            e.preventDefault();
+            handleCut(hoveredItem);
+          }
+        } else if (e.key === "v" || e.key === "V") {
+          if (clipboard) {
+            e.preventDefault();
+            handlePaste();
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [hoveredItem, clipboard, handleCopy, handleCut, handlePaste]);
+
+  const handleDownload = (file: DriveFile) => {
+    const link = document.createElement("a");
+    link.href = `/api/files/${file.id}`;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDelete = async (item: DriveItem) => {
+    const isTrash = activeTab === "trash";
+    const message = isTrash
+      ? `Permanently delete "${item.name}"? This cannot be undone.`
+      : `Move "${item.name}" to trash? You can restore within 30 days.`;
+
+    if (!confirm(message)) return;
+
+    try {
+      const res = await fetch(`/api/files/${item.id}`, { method: "DELETE" });
+      if (res.ok) {
+        showToast("success", isTrash ? "Permanently deleted" : "Moved to trash");
+        await fetchAll();
+      } else {
+        showToast("error", "Failed to delete");
+      }
+    } catch {
+      showToast("error", "Failed to delete");
+    }
+  };
+
+  const handleRestore = async (item: DriveItem) => {
+    try {
+      const res = await fetch(`/api/files/${item.id}/restore`, { method: "POST" });
+      if (res.ok) {
+        showToast("success", `"${item.name}" restored successfully`);
+        await fetchAll();
+        setActiveTab("files");
+      } else {
+        showToast("error", "Failed to restore");
+      }
+    } catch {
+      showToast("error", "Failed to restore");
+    }
+  };
+
+  const handleOpenFolder = (folder: DriveFolder) => {
+    setCurrentFolderId(folder.id);
+    setBreadcrumb((prev) => [...prev, { id: folder.id, name: folder.name }]);
+    setActiveTab("files");
+  };
+
+  const handleNavigate = (folderId: string | null) => {
+    setCurrentFolderId(folderId);
+    if (!folderId) {
+      setBreadcrumb([]);
+    } else {
+      const idx = breadcrumb.findIndex((b) => b.id === folderId);
+      setBreadcrumb(idx >= 0 ? breadcrumb.slice(0, idx + 1) : breadcrumb);
+    }
+  };
+
+  const fileCount = items.filter((i) => !isDriveFolder(i)).length;
+
+  return (
+    <div className="min-h-screen p-4 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        <Header />
+
+        <GoogleDriveBanner />
+
+        {activeTab === "files" && (
+          <div className="relative z-40">
+            <FileUploader
+              folders={allFolders}
+              onUpload={handleUpload}
+              uploading={uploading}
+              defaultFolderId={currentFolderId}
+            />
+          </div>
+        )}
+
+        {activeTab === "folders" && (
+          <div className="relative z-40">
+            <FolderPanel
+              folders={allFolders}
+              uploading={uploading}
+              onCreateFolder={handleCreateFolder}
+              onUploadFolder={handleUploadFolder}
+              onRefresh={fetchAll}
+            />
+          </div>
+        )}
+
+        <TabBar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          fileCount={fileCount}
+          folderCount={allFolders.filter((f) => !allFolders.some((p) => p.id === f.parentId)).length}
+          trashCount={trashItems.length}
+        />
+
+        {activeTab === "files" && breadcrumb.length > 0 && (
+          <BreadcrumbNav path={breadcrumb} onNavigate={handleNavigate} />
+        )}
+
+        {activeTab === "files" ? (
+          <FileGrid
+            items={items}
+            loading={loading}
+            onPreview={setPreviewFile}
+            onDownload={handleDownload}
+            onDelete={handleDelete}
+            onOpenFolder={handleOpenFolder}
+            onCopy={handleCopy}
+            onCut={handleCut}
+            onHoverItem={setHoveredItem}
+            emptyMessage={
+              currentFolderId
+                ? "This folder is empty."
+                : "No files yet. Upload your first file or create a folder!"
+            }
+          />
+        ) : activeTab === "folders" ? (
+          <FileGrid
+            items={allFolders.filter((f) => !allFolders.some((p) => p.id === f.parentId))}
+            loading={loading}
+            onPreview={() => {}}
+            onDownload={() => {}}
+            onDelete={handleDelete}
+            onOpenFolder={(folder) => {
+              handleOpenFolder(folder);
+            }}
+            onCopy={handleCopy}
+            onCut={handleCut}
+            onHoverItem={setHoveredItem}
+            emptyMessage="No folders yet. Create your first folder above!"
+          />
+        ) : (
+          <FileGrid
+            items={trashItems}
+            loading={loading}
+            onPreview={setPreviewFile}
+            onDownload={handleDownload}
+            onDelete={handleDelete}
+            onRestore={handleRestore}
+            isTrash
+            emptyMessage="Trash is empty. Deleted files appear here for 30 days."
+          />
+        )}
+
+        <FilePreviewModal
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
+          onDownload={handleDownload}
+        />
+
+        {clipboard && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className="fixed bottom-6 left-6 z-40 glass rounded-xl border border-indigo-500/30 px-5 py-4 flex flex-col sm:flex-row items-center gap-4 shadow-2xl min-w-[280px]"
+          >
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 text-indigo-300">
+                {clipboard.type === "cut" ? <Scissors className="w-5 h-5 animate-pulse" /> : <Copy className="w-5 h-5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white/40 text-[10px] uppercase tracking-wider font-bold">
+                  Clipboard ({clipboard.type})
+                </p>
+                <p className="text-white font-medium text-sm truncate max-w-[180px]" title={clipboard.itemName}>
+                  {clipboard.itemName}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0">
+              <button
+                onClick={handlePaste}
+                className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1.5"
+              >
+                Paste Here
+              </button>
+              <button
+                onClick={() => setClipboard(null)}
+                className="btn-ghost py-1.5 px-2 text-xs text-white/50 hover:text-white"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`fixed bottom-6 right-6 z-50 glass rounded-xl px-5 py-3 flex items-center gap-3 shadow-xl max-w-sm ${
+              toast.type === "success" ? "border-green-500/30" : "border-red-500/30"
+            }`}
+          >
+            {toast.type === "success" ? (
+              <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+            )}
+            <span className="text-white text-sm">{toast.message}</span>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}
