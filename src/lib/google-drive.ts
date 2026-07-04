@@ -10,6 +10,7 @@ import {
 } from "./file-types";
 import {
   DRIVE_OPTS,
+  DRIVE_LIST_OPTS,
   formatDriveError,
   getDriveAuthMode,
   getDriveClient,
@@ -28,7 +29,7 @@ async function findOrCreateFolder(
   const query = `name='${safeName}' and '${parentId}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`;
 
   const res = await drive.files.list({
-    ...DRIVE_OPTS,
+    ...DRIVE_LIST_OPTS,
     q: query,
     fields: "files(id)",
     pageSize: 1,
@@ -142,13 +143,14 @@ async function getFolderFileCounts(drive: drive_v3.Drive): Promise<Record<string
   try {
     let pageToken: string | undefined = undefined;
     do {
-      const res = await drive.files.list({
-        ...DRIVE_OPTS,
+      const params: drive_v3.Params$Resource$Files$List = {
+        ...DRIVE_LIST_OPTS,
         q: `mimeType != '${FOLDER_MIME}' and trashed=false`,
         fields: "nextPageToken,files(parents)",
         pageSize: 1000,
         pageToken,
-      });
+      };
+      const res = await drive.files.list(params);
       for (const file of res.data.files || []) {
         const parentId = file.parents?.[0];
         if (parentId) {
@@ -199,7 +201,7 @@ export async function listBrowseItems(
   }
 
   const res = await drive.files.list({
-    ...DRIVE_OPTS,
+    ...DRIVE_LIST_OPTS,
     q: `'${parentId}' in parents and trashed=false`,
     fields: "files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents)",
     orderBy: "folder,name",
@@ -230,7 +232,7 @@ export async function listAllUserFolders(userId: string): Promise<DriveFolder[]>
   const fileCounts = await getFolderFileCounts(drive);
 
   const res = await drive.files.list({
-    ...DRIVE_OPTS,
+    ...DRIVE_LIST_OPTS,
     q: `'${filesFolderId}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`,
     fields: "files(id,name,createdTime,modifiedTime,parents)",
     orderBy: "name",
@@ -248,7 +250,7 @@ export async function listAllUserFolders(userId: string): Promise<DriveFolder[]>
   async function fetchChildren(parentIds: string[]) {
     for (const pid of parentIds) {
       const childRes = await drive.files.list({
-        ...DRIVE_OPTS,
+        ...DRIVE_LIST_OPTS,
         q: `'${pid}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`,
         fields: "files(id,name,createdTime,modifiedTime,parents)",
         pageSize: 200,
@@ -335,7 +337,7 @@ export async function listTrashItems(userId: string): Promise<DriveItem[]> {
   const { trashFolderId } = await getUserFolders(userId);
 
   const res = await drive.files.list({
-    ...DRIVE_OPTS,
+    ...DRIVE_LIST_OPTS,
     q: `'${trashFolderId}' in parents and trashed=false`,
     fields: "files(id,name,mimeType,size,createdTime,modifiedTime,appProperties,webViewLink,webContentLink,parents)",
     orderBy: "modifiedTime desc",
@@ -379,7 +381,6 @@ export async function uploadFile(
     const res = await drive.files.create({
       ...DRIVE_OPTS,
       supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
       requestBody: {
         name: filename,
         parents: [parentId],
@@ -619,7 +620,7 @@ export async function purgeExpiredTrash(userId: string): Promise<number> {
   const { trashFolderId } = await getUserFolders(userId);
 
   const res = await drive.files.list({
-    ...DRIVE_OPTS,
+    ...DRIVE_LIST_OPTS,
     q: `'${trashFolderId}' in parents and trashed=false`,
     fields: "files(id,appProperties)",
     pageSize: 200,
@@ -697,7 +698,7 @@ export async function copyFolder(
   const newFolderId = await findOrCreateFolder(srcMeta.data.name || "Copied Folder", destId);
 
   const res = await drive.files.list({
-    ...DRIVE_OPTS,
+    ...DRIVE_LIST_OPTS,
     q: `'${folderId}' in parents and trashed=false`,
     fields: "files(id,name,mimeType)",
     pageSize: 200,

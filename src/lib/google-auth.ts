@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { Auth, google } from "googleapis";
+import { Auth, google, drive_v3 } from "googleapis";
 import {
   getOAuthRedirectUri,
   getStoredRefreshToken,
@@ -119,10 +119,14 @@ export function getGoogleAuth(): Auth.OAuth2Client | Auth.JWT {
 
 export const DRIVE_OPTS = {
   supportsAllDrives: true,
+};
+
+export const DRIVE_LIST_OPTS = {
+  supportsAllDrives: true,
   includeItemsFromAllDrives: true,
 };
 
-export function getDriveClient() {
+export function getDriveClient(): drive_v3.Drive {
   return google.drive({ version: "v3", auth: getGoogleAuth() });
 }
 
