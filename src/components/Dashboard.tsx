@@ -11,7 +11,7 @@ import { TabBar, DashboardTab } from "@/components/TabBar";
 import { FolderPanel } from "@/components/FolderPanel";
 import { BreadcrumbNav } from "@/components/BreadcrumbNav";
 import { GoogleDriveBanner } from "@/components/GoogleDriveSetup";
-import { AlertCircle, CheckCircle2, Scissors, Copy, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Scissors, Copy, Trash2, RotateCcw } from "lucide-react";
 
 export function Dashboard() {
   const [items, setItems] = useState<DriveItem[]>([]);
@@ -335,6 +335,34 @@ export function Dashboard() {
     }
   };
 
+  const handleMultiRestore = async (selectedItems: DriveItem[]) => {
+    setLoading(true);
+    let successCount = 0;
+
+    await Promise.all(
+      selectedItems.map(async (item) => {
+        try {
+          const res = await fetch(`/api/files/${item.id}/restore`, { method: "POST" });
+          if (res.ok) {
+            successCount++;
+          }
+        } catch (err) {
+          console.error("Restore error:", err);
+        }
+      })
+    );
+
+    setLoading(false);
+    if (successCount > 0) {
+      showToast("success", `Restored ${successCount} item(s) successfully`);
+      setSelectedIds(new Set());
+      await fetchAll();
+      setActiveTab("files");
+    } else {
+      showToast("error", "Failed to restore items");
+    }
+  };
+
   const handleDelete = async (item: DriveItem) => {
     const isTrash = activeTab === "trash";
     const message = isTrash
@@ -522,45 +550,69 @@ export function Dashboard() {
               <div className="h-6 w-px bg-white/10" />
 
               <div className="flex items-center gap-3">
-                {selectedItems.some(i => !isDriveFolder(i)) && (
-                  <button
-                    onClick={() => handleMultiDownload(selectedItems)}
-                    className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-all flex flex-col items-center gap-0.5"
-                    title="Download selected files"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    <span className="text-[10px] font-medium">Download</span>
-                  </button>
+                {activeTab === "trash" ? (
+                  <>
+                    <button
+                      onClick={() => handleMultiRestore(selectedItems)}
+                      className="p-2 rounded-lg hover:bg-green-500/20 text-green-400 hover:text-green-300 transition-all flex flex-col items-center gap-0.5"
+                      title="Restore selected items"
+                    >
+                      <RotateCcw className="w-5 h-5" />
+                      <span className="text-[10px] font-medium">Restore</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleMultiDelete(selectedItems)}
+                      className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all flex flex-col items-center gap-0.5"
+                      title="Delete permanently"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      <span className="text-[10px] font-medium">Delete Forever</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {selectedItems.some(i => !isDriveFolder(i)) && (
+                      <button
+                        onClick={() => handleMultiDownload(selectedItems)}
+                        className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-all flex flex-col items-center gap-0.5"
+                        title="Download selected files"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span className="text-[10px] font-medium">Download</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => handleMultiCopy(selectedItems)}
+                      className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-all flex flex-col items-center gap-0.5"
+                      title="Copy selected items"
+                    >
+                      <Copy className="w-5 h-5" />
+                      <span className="text-[10px] font-medium">Copy</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleMultiCut(selectedItems)}
+                      className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-all flex flex-col items-center gap-0.5"
+                      title="Cut selected items"
+                    >
+                      <Scissors className="w-5 h-5" />
+                      <span className="text-[10px] font-medium">Cut</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleMultiDelete(selectedItems)}
+                      className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all flex flex-col items-center gap-0.5"
+                      title="Delete selected items"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      <span className="text-[10px] font-medium">Delete</span>
+                    </button>
+                  </>
                 )}
-
-                <button
-                  onClick={() => handleMultiCopy(selectedItems)}
-                  className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-all flex flex-col items-center gap-0.5"
-                  title="Copy selected items"
-                >
-                  <Copy className="w-5 h-5" />
-                  <span className="text-[10px] font-medium">Copy</span>
-                </button>
-
-                <button
-                  onClick={() => handleMultiCut(selectedItems)}
-                  className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-all flex flex-col items-center gap-0.5"
-                  title="Cut selected items"
-                >
-                  <Scissors className="w-5 h-5" />
-                  <span className="text-[10px] font-medium">Cut</span>
-                </button>
-
-                <button
-                  onClick={() => handleMultiDelete(selectedItems)}
-                  className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all flex flex-col items-center gap-0.5"
-                  title="Delete selected items"
-                >
-                  <Trash2 className="w-5 h-5" />
-                  <span className="text-[10px] font-medium">Delete</span>
-                </button>
               </div>
 
               <div className="h-6 w-px bg-white/10" />

@@ -629,7 +629,7 @@ export async function deleteFolder(userId: string, folderId: string): Promise<vo
 
 export async function restoreFile(userId: string, fileId: string): Promise<DriveFile> {
   const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+  const { filesFolderId, trashFolderId } = await getUserFolders(userId);
 
   const res = await drive.files.get({
     ...DRIVE_OPTS,
@@ -642,8 +642,14 @@ export async function restoreFile(userId: string, fileId: string): Promise<Drive
   let restoreParent = filesFolderId;
 
   if (originalParentId) {
-    const parentExists = await verifyUserOwnsFolder(userId, originalParentId);
-    if (parentExists) restoreParent = originalParentId;
+    const ownsParent = await verifyUserOwnsFile(userId, originalParentId);
+    if (ownsParent) {
+      const isParentInTrash = await isUnderFolder(originalParentId, trashFolderId);
+      if (isParentInTrash) {
+        await restoreFolder(userId, originalParentId);
+      }
+      restoreParent = originalParentId;
+    }
   }
 
   await drive.files.update({
@@ -670,7 +676,7 @@ export async function restoreFile(userId: string, fileId: string): Promise<Drive
 
 export async function restoreFolder(userId: string, folderId: string): Promise<DriveFolder> {
   const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+  const { filesFolderId, trashFolderId } = await getUserFolders(userId);
 
   const res = await drive.files.get({
     ...DRIVE_OPTS,
@@ -683,8 +689,14 @@ export async function restoreFolder(userId: string, folderId: string): Promise<D
   let restoreParent = filesFolderId;
 
   if (originalParentId) {
-    const parentExists = await verifyUserOwnsFolder(userId, originalParentId);
-    if (parentExists) restoreParent = originalParentId;
+    const ownsParent = await verifyUserOwnsFile(userId, originalParentId);
+    if (ownsParent) {
+      const isParentInTrash = await isUnderFolder(originalParentId, trashFolderId);
+      if (isParentInTrash) {
+        await restoreFolder(userId, originalParentId);
+      }
+      restoreParent = originalParentId;
+    }
   }
 
   await drive.files.update({
