@@ -18,7 +18,7 @@ export function Dashboard() {
   const [allFolders, setAllFolders] = useState<DriveFolder[]>([]);
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<"files" | "folder" | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTab>("files");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string }[]>([]);
@@ -114,49 +114,84 @@ export function Dashboard() {
   }, [fetchAll]);
 
   const uploadFiles = async (
-    fileList: FileList,
+    fileList: FileList | File[],
     folderId: string,
     withRelativePath = false
   ) => {
-    setUploading(true);
+    setUploading(withRelativePath ? "folder" : "files");
     let successCount = 0;
+    const resolvedMap = new Map<string, string>();
 
-    for (const file of Array.from(fileList)) {
-      const formData = new FormData();
-      formData.append("file", file);
-      if (folderId && folderId !== "root") {
-        formData.append("folderId", folderId);
-      }
-      if (withRelativePath) {
-        const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
-        if (relativePath) formData.append("relativePath", relativePath);
-      }
+    try {
+      for (const file of Array.from(fileList)) {
+        const formData = new FormData();
+        formData.append("file", file);
 
-      try {
-        const res = await fetch("/api/files", { method: "POST", body: formData });
-        if (res.ok) {
-          successCount++;
-        } else {
-          const data = await res.json();
-          showToast("error", data.error || `Failed to upload ${file.name}`);
+        let finalFolderId = folderId && folderId !== "root" ? folderId : undefined;
+        let finalRelativePath = withRelativePath
+          ? (file as File & { webkitRelativePath?: string }).webkitRelativePath
+          : undefined;
+
+        if (withRelativePath && finalRelativePath) {
+          const parts = finalRelativePath.replace(/\\/g, "/").split("/");
+          const filename = parts.pop() || "";
+          const dirParts = parts;
+
+          for (let i = dirParts.length; i > 0; i--) {
+            const prefixPath = dirParts.slice(0, i).join("/");
+            if (resolvedMap.has(prefixPath)) {
+              finalFolderId = resolvedMap.get(prefixPath)!;
+              finalRelativePath = [...dirParts.slice(i), filename].join("/");
+              break;
+            }
+          }
         }
-      } catch {
-        showToast("error", `Upload failed for ${file.name}`);
+
+        if (finalFolderId) {
+          formData.append("folderId", finalFolderId);
+        }
+        if (finalRelativePath) {
+          formData.append("relativePath", finalRelativePath);
+        }
+
+        try {
+          const res = await fetch("/api/files", { method: "POST", body: formData });
+          if (res.ok) {
+            successCount++;
+            const data = await res.json();
+            const uploadedFile = data.file;
+
+            const originalRelativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+            if (withRelativePath && originalRelativePath && uploadedFile?.parentId) {
+              const parts = originalRelativePath.replace(/\\/g, "/").split("/");
+              parts.pop();
+              if (parts.length > 0) {
+                const originalDir = parts.join("/");
+                resolvedMap.set(originalDir, uploadedFile.parentId);
+              }
+            }
+          } else {
+            const data = await res.json();
+            showToast("error", data.error || `Failed to upload ${file.name}`);
+          }
+        } catch {
+          showToast("error", `Upload failed for ${file.name}`);
+        }
       }
-    }
 
-    if (successCount > 0) {
-      showToast("success", `${successCount} file(s) uploaded successfully`);
-      await fetchAll();
+      if (successCount > 0) {
+        showToast("success", `${successCount} file(s) uploaded successfully`);
+        await fetchAll();
+      }
+    } finally {
+      setUploading(null);
     }
-
-    setUploading(false);
   };
 
-  const handleUpload = (files: FileList, folderId: string) =>
+  const handleUpload = (files: FileList | File[], folderId: string) =>
     uploadFiles(files, folderId, false);
 
-  const handleUploadFolder = (files: FileList, folderId: string) =>
+  const handleUploadFolder = (files: FileList | File[], folderId: string) =>
     uploadFiles(files, folderId, true);
 
   const handleCreateFolder = async (name: string, parentId?: string) => {
@@ -454,7 +489,8 @@ export function Dashboard() {
             <FileUploader
               folders={allFolders}
               onUpload={handleUpload}
-              uploading={uploading}
+              onUploadFolder={handleUploadFolder}
+              uploadingType={uploading}
               defaultFolderId={currentFolderId}
             />
           </div>
@@ -464,7 +500,7 @@ export function Dashboard() {
           <div className="relative z-40">
             <FolderPanel
               folders={allFolders}
-              uploading={uploading}
+              uploading={uploading !== null}
               onCreateFolder={handleCreateFolder}
               onUploadFolder={handleUploadFolder}
               onRefresh={fetchAll}

@@ -370,6 +370,64 @@ export async function listAllUserFolders(userId: string): Promise<DriveFolder[]>
   return folders.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+async function getUniqueFilename(
+  drive: drive_v3.Drive,
+  parentId: string,
+  filename: string,
+  mimeType: string
+): Promise<string> {
+  const isFolder = mimeType === FOLDER_MIME;
+  let base = filename;
+  let ext = "";
+  if (!isFolder) {
+    const lastDotIdx = filename.lastIndexOf(".");
+    if (lastDotIdx !== -1) {
+      base = filename.substring(0, lastDotIdx);
+      ext = filename.substring(lastDotIdx);
+    }
+  }
+
+  // To be case-insensitive, let's list all files in parentId once
+  const res = await drive.files.list({
+    ...DRIVE_LIST_OPTS,
+    q: `'${parentId}' in parents and trashed=false`,
+    fields: "files(name)",
+    pageSize: 1000,
+  });
+
+  const existingNames = new Set(
+    res.data.files?.map((f) => f.name?.toLowerCase()).filter(Boolean) || []
+  );
+
+  let uniqueName = filename;
+  let counter = 1;
+
+  while (existingNames.has(uniqueName.toLowerCase())) {
+    uniqueName = `${base} (${counter})${ext}`;
+    counter++;
+  }
+
+  return uniqueName;
+}
+
+async function createUniqueFolder(
+  drive: drive_v3.Drive,
+  name: string,
+  parentId: string
+): Promise<string> {
+  const uniqueName = await getUniqueFilename(drive, parentId, name, FOLDER_MIME);
+  const folder = await drive.files.create({
+    ...DRIVE_OPTS,
+    requestBody: {
+      name: uniqueName,
+      mimeType: FOLDER_MIME,
+      parents: [parentId],
+    },
+    fields: "id",
+  });
+  return folder.data.id!;
+}
+
 export async function createUserFolder(
   userId: string,
   name: string,
@@ -388,15 +446,31 @@ export async function createUserFolder(
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Folder name is required");
 
+  // Check if folder name already exists in target parentId (case-insensitive)
+  const res = await drive.files.list({
+    ...DRIVE_LIST_OPTS,
+    q: `'${parentId}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`,
+    fields: "files(name)",
+    pageSize: 1000,
+  });
+
+  const folderExists = res.data.files?.some(
+    (file) => file.name?.toLowerCase() === trimmed.toLowerCase()
+  );
+
+  if (folderExists) {
+    throw new Error("This Name folder already created");
+  }
+
   const folderId = await findOrCreateFolder(trimmed, parentId);
-  const res = await drive.files.get({
+  const folderRes = await drive.files.get({
     ...DRIVE_OPTS,
     fileId: folderId,
     fields: "id,name,createdTime,modifiedTime,parents",
   });
 
   clearRelationCache();
-  return mapDriveFolder(res.data);
+  return mapDriveFolder(folderRes.data);
 }
 
 export async function ensureFolderPath(
@@ -404,6 +478,7 @@ export async function ensureFolderPath(
   pathParts: string[],
   baseFolderId?: string
 ): Promise<string> {
+  const drive = getDriveClient();
   const { filesFolderId } = await getUserFolders(userId);
   let currentId = baseFolderId || filesFolderId;
 
@@ -412,9 +487,29 @@ export async function ensureFolderPath(
     if (!owns) throw new Error("Base folder not found");
   }
 
+  let isFirst = true;
   for (const part of pathParts) {
     if (!part || part === ".") continue;
-    currentId = await findOrCreateFolder(part, currentId);
+    if (isFirst) {
+      // Make the top-level part unique if there's a conflict
+      const safeName = escapeQueryValue(part);
+      const query = `name='${safeName}' and '${currentId}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`;
+      const res = await drive.files.list({
+        ...DRIVE_LIST_OPTS,
+        q: query,
+        fields: "files(id)",
+        pageSize: 1,
+      });
+
+      if (res.data.files && res.data.files.length > 0) {
+        currentId = await createUniqueFolder(drive, part, currentId);
+      } else {
+        currentId = await findOrCreateFolder(part, currentId);
+      }
+      isFirst = false;
+    } else {
+      currentId = await findOrCreateFolder(part, currentId);
+    }
   }
 
   return currentId;
@@ -475,12 +570,15 @@ export async function uploadFile(
     parentId = parentFolderId;
   }
 
+  // Resolve unique name for file uploads
+  const uniqueName = await getUniqueFilename(drive, parentId, filename, mimeType);
+
   try {
     const res = await drive.files.create({
       ...DRIVE_OPTS,
       supportsAllDrives: true,
       requestBody: {
-        name: filename,
+        name: uniqueName,
         parents: [parentId],
       },
       media: {

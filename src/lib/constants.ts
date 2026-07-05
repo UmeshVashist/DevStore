@@ -49,9 +49,30 @@ export const ALLOWED_MIME_TYPES = [
 ];
 
 export const FILE_EXTENSIONS = [
-  ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-  ".zip", ".rar", ".7z", ".exe", ".msi", ".dmg", ".apk",
-  ".txt", ".csv", ".json", ".xml", ".html", ".css", ".js", ".ts",
-  ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg",
-  ".mp4", ".webm", ".mp3", ".wav",
+  // Documents
+  ".txt", ".doc", ".docx", ".pdf", ".rtf", ".odt", ".tex", ".md", ".xls", ".xlsx", ".xlsm", ".csv", ".ods", ".ppt", ".pptx", ".odp", ".pps", ".ppsx",
+  // Images
+  ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tif", ".tiff", ".webp", ".svg", ".ico", ".heic", ".raw", ".psd", ".ai",
+  // Audio
+  ".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a", ".wma", ".mid",
+  // Video
+  ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm", ".3gp", ".mpeg", ".ts",
+  // Archives & Disks
+  ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".cab", ".iso", ".img", ".vhd", ".vhdx", ".dmg",
+  // System & Executables
+  ".exe", ".msi", ".bat", ".cmd", ".com", ".scr", ".ps1", ".dll", ".sys", ".drv",
+  // Config & Logs
+  ".ini", ".inf", ".reg", ".dat", ".tmp", ".log", ".evtx", ".cfg", ".conf", ".yaml", ".yml", ".toml", ".env", ".properties",
+  // Web & Code
+  ".html", ".htm", ".css", ".js", ".json", ".xml", ".php", ".asp", ".aspx", ".py", ".java", ".c", ".cpp", ".h", ".hpp", ".cs", ".go", ".rs", ".rb", ".swift", ".kt", ".ts", ".jsx", ".tsx", ".sh",
+  // Database
+  ".db", ".sqlite", ".mdb", ".accdb", ".sql",
+  // Fonts
+  ".ttf", ".otf", ".woff", ".woff2",
+  // Email
+  ".eml", ".msg", ".pst", ".ost",
+  // Certificates
+  ".cer", ".crt", ".pem", ".pfx", ".p12",
+  // Ebooks
+  ".epub", ".mobi", ".azw3"
 ];
