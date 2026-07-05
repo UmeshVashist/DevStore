@@ -407,7 +407,7 @@ async function getUniqueFilename(
       pageSize: 1000,
     });
     existingNames = new Set(
-      res.data.files?.map((f) => f.name?.toLowerCase()).filter(Boolean) || []
+      (res.data.files?.map((f) => f.name?.toLowerCase()).filter(Boolean) as string[]) || []
     );
     parentFolderNamesCache.set(parentId, { names: existingNames, timestamp: now });
   }

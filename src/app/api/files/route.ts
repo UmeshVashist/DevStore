@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { MAX_FILE_SIZE_MB, ALLOWED_MIME_TYPES, FILE_EXTENSIONS } from "@/lib/constants";
+import { ALLOWED_MIME_TYPES, FILE_EXTENSIONS } from "@/lib/constants";
 import {
   listBrowseItems,
   uploadFile,
