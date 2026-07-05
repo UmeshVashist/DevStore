@@ -66,7 +66,10 @@ export async function POST(request: NextRequest) {
       mimeType === "application/octet-stream";
 
     if (!isAllowed) {
-      return NextResponse.json({ error: "File type not allowed" }, { status: 400 });
+      return NextResponse.json(
+        { error: `File type not allowed: ${ext || mimeType}` },
+        { status: 400 }
+      );
     }
 
     const targetFolderId = folderId && folderId !== "root" ? folderId : undefined;

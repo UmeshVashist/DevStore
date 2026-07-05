@@ -151,7 +151,7 @@ export function Dashboard() {
         }
 
         let currentFileUploadedBytes = 0;
-        const uploadSuccess = await new Promise<{ success: boolean; file?: any; error?: string }>((resolve) => {
+        const uploadSuccess = await new Promise<{ success: boolean; file?: DriveFile; error?: string }>((resolve) => {
           const xhr = new XMLHttpRequest();
           const formData = new FormData();
           formData.append("file", file);

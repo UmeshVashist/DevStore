@@ -50,7 +50,7 @@ export const ALLOWED_MIME_TYPES = [
 
 export const FILE_EXTENSIONS = [
   // Documents
-  ".txt", ".doc", ".docx", ".pdf", ".rtf", ".odt", ".tex", ".md", ".xls", ".xlsx", ".xlsm", ".csv", ".ods", ".ppt", ".pptx", ".odp", ".pps", ".ppsx",
+  ".txt", ".doc", ".docx", ".docm", ".dotx", ".dotm", ".dot", ".pdf", ".rtf", ".odt", ".tex", ".md", ".xls", ".xlsx", ".xlsm", ".xlsb", ".xltx", ".xltm", ".xlt", ".csv", ".ods", ".ppt", ".pptx", ".pptm", ".potx", ".potm", ".pot", ".ppsx", ".ppsm", ".pps", ".ppa", ".ppam", ".odp", ".xps", ".mht", ".mhtml", ".prn", ".dif", ".slk", ".xlam", ".xla",
   // Images
   ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tif", ".tiff", ".webp", ".svg", ".ico", ".heic", ".raw", ".psd", ".ai",
   // Audio
