@@ -16,11 +16,11 @@ interface FileUploaderProps {
 }
 
 // Helper to recursively read all entries of a directory reader
-async function readAllEntries(reader: any): Promise<any[]> {
-  const allEntries: any[] = [];
-  const readBatch = (): Promise<any[]> => {
+async function readAllEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  const allEntries: FileSystemEntry[] = [];
+  const readBatch = (): Promise<FileSystemEntry[]> => {
     return new Promise((resolve, reject) => {
-      reader.readEntries((results: any[]) => {
+      reader.readEntries((results) => {
         if (results.length === 0) {
           resolve(allEntries);
         } else {
@@ -34,10 +34,11 @@ async function readAllEntries(reader: any): Promise<any[]> {
 }
 
 // Recursive helper to traverse directories and build list of files with webkitRelativePath
-async function getFilesFromEntry(entry: any, path = ""): Promise<File[]> {
+async function getFilesFromEntry(entry: FileSystemEntry, path = ""): Promise<File[]> {
   if (entry.isFile) {
+    const fileEntry = entry as FileSystemFileEntry;
     return new Promise((resolve, reject) => {
-      entry.file((file: File) => {
+      fileEntry.file((file: File) => {
         const relativePath = path ? `${path}/${file.name}` : file.name;
         Object.defineProperty(file, "webkitRelativePath", {
           value: relativePath,
@@ -49,7 +50,8 @@ async function getFilesFromEntry(entry: any, path = ""): Promise<File[]> {
       }, reject);
     });
   } else if (entry.isDirectory) {
-    const reader = entry.createReader();
+    const dirEntry = entry as FileSystemDirectoryEntry;
+    const reader = dirEntry.createReader();
     try {
       const entries = await readAllEntries(reader);
       const files: File[] = [];
@@ -100,7 +102,7 @@ export function FileUploader({
       const items = Array.from(e.dataTransfer.items);
       const entries = items
         .map((item) => item.webkitGetAsEntry())
-        .filter((entry): entry is any => !!entry);
+        .filter((entry): entry is FileSystemEntry => !!entry);
 
       if (entries.length > 0) {
         const filesPromises = entries.map((entry) => getFilesFromEntry(entry));
