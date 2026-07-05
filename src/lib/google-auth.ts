@@ -87,7 +87,17 @@ export function getDriveAuthMode(): DriveAuthMode {
   return "oauth";
 }
 
+let cachedAuth: Auth.OAuth2Client | Auth.JWT | null = null;
+let cachedDrive: drive_v3.Drive | null = null;
+
+export function clearGoogleAuthCache(): void {
+  cachedAuth = null;
+  cachedDrive = null;
+}
+
 export function getGoogleAuth(): Auth.OAuth2Client | Auth.JWT {
+  if (cachedAuth) return cachedAuth;
+
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   const refreshToken = getStoredRefreshToken();
@@ -99,11 +109,14 @@ export function getGoogleAuth(): Auth.OAuth2Client | Auth.JWT {
       getOAuthRedirectUri()
     );
     oauth2.setCredentials({ refresh_token: refreshToken });
+    cachedAuth = oauth2;
     return oauth2;
   }
 
   if (hasServiceAccountCredentials()) {
-    return getServiceAccountAuth();
+    const auth = getServiceAccountAuth();
+    cachedAuth = auth;
+    return auth;
   }
 
   if (hasOAuthClientCredentials()) {
@@ -127,7 +140,9 @@ export const DRIVE_LIST_OPTS = {
 };
 
 export function getDriveClient(): drive_v3.Drive {
-  return google.drive({ version: "v3", auth: getGoogleAuth() });
+  if (cachedDrive) return cachedDrive;
+  cachedDrive = google.drive({ version: "v3", auth: getGoogleAuth() });
+  return cachedDrive;
 }
 
 export function formatDriveError(error: unknown): string {

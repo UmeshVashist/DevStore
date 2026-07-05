@@ -152,109 +152,124 @@ export function Dashboard() {
     let completedBytes = 0;
 
     try {
-      for (const file of allowedFiles) {
-        let finalFolderId = folderId && folderId !== "root" ? folderId : undefined;
-        let finalRelativePath = withRelativePath
-          ? (file as File & { webkitRelativePath?: string }).webkitRelativePath
-          : undefined;
+      const CONCURRENCY_LIMIT = 4;
+      let nextIndex = 0;
 
-        if (withRelativePath && finalRelativePath) {
-          const parts = finalRelativePath.replace(/\\/g, "/").split("/");
-          const filename = parts.pop() || "";
-          const dirParts = parts;
+      const worker = async () => {
+        while (nextIndex < allowedFiles.length) {
+          const currentIndex = nextIndex++;
+          const file = allowedFiles[currentIndex];
 
-          for (let i = dirParts.length; i > 0; i--) {
-            const prefixPath = dirParts.slice(0, i).join("/");
-            if (resolvedMap.has(prefixPath)) {
-              finalFolderId = resolvedMap.get(prefixPath)!;
-              finalRelativePath = [...dirParts.slice(i), filename].join("/");
-              break;
-            }
-          }
-        }
+          let finalFolderId = folderId && folderId !== "root" ? folderId : undefined;
+          let finalRelativePath = withRelativePath
+            ? (file as File & { webkitRelativePath?: string }).webkitRelativePath
+            : undefined;
 
-        let currentFileUploadedBytes = 0;
-        const uploadSuccess = await new Promise<{ success: boolean; file?: DriveFile; error?: string }>((resolve) => {
-          const xhr = new XMLHttpRequest();
-          const formData = new FormData();
-          formData.append("file", file);
-          if (finalFolderId) {
-            formData.append("folderId", finalFolderId);
-          }
-          if (finalRelativePath) {
-            formData.append("relativePath", finalRelativePath);
-          }
+          if (withRelativePath && finalRelativePath) {
+            const parts = finalRelativePath.replace(/\\/g, "/").split("/");
+            const filename = parts.pop() || "";
+            const dirParts = parts;
 
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const diff = event.loaded - currentFileUploadedBytes;
-              currentFileUploadedBytes = event.loaded;
-              completedBytes += diff;
-              const percent = Math.min(
-                99,
-                Math.round((completedBytes / (totalBytes || 1)) * 100)
-              );
-              setUploadProgress(percent);
-            }
-          };
-
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const resData = JSON.parse(xhr.responseText);
-                resolve({ success: true, file: resData.file });
-              } catch {
-                resolve({ success: true });
-              }
-            } else {
-              try {
-                const resData = JSON.parse(xhr.responseText);
-                resolve({ success: false, error: resData.error });
-              } catch {
-                resolve({
-                  success: false,
-                  error: `Server error (${xhr.status}: ${xhr.statusText || "Upload failed"})`,
-                });
+            for (let i = dirParts.length; i > 0; i--) {
+              const prefixPath = dirParts.slice(0, i).join("/");
+              if (resolvedMap.has(prefixPath)) {
+                finalFolderId = resolvedMap.get(prefixPath)!;
+                finalRelativePath = [...dirParts.slice(i), filename].join("/");
+                break;
               }
             }
-          };
-
-          xhr.onerror = () => {
-            resolve({ success: false });
-          };
-
-          xhr.open("POST", "/api/files");
-          xhr.send(formData);
-        });
-
-        const remaining = file.size - currentFileUploadedBytes;
-        if (remaining > 0) {
-          completedBytes += remaining;
-        }
-
-        if (uploadSuccess.success) {
-          successCount++;
-          const uploadedFile = uploadSuccess.file;
-
-          const originalRelativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
-          if (withRelativePath && originalRelativePath && uploadedFile?.parentId) {
-            const parts = originalRelativePath.replace(/\\/g, "/").split("/");
-            parts.pop();
-            if (parts.length > 0) {
-              const originalDir = parts.join("/");
-              resolvedMap.set(originalDir, uploadedFile.parentId);
-            }
           }
-        } else {
-          showToast("error", uploadSuccess.error || `Failed to upload ${file.name}`);
-        }
 
-        const percent = Math.min(
-          100,
-          Math.round((completedBytes / (totalBytes || 1)) * 100)
-        );
-        setUploadProgress(percent);
+          let currentFileUploadedBytes = 0;
+          const uploadSuccess = await new Promise<{ success: boolean; file?: DriveFile; error?: string }>((resolve) => {
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData();
+            formData.append("file", file);
+            if (finalFolderId) {
+              formData.append("folderId", finalFolderId);
+            }
+            if (finalRelativePath) {
+              formData.append("relativePath", finalRelativePath);
+            }
+
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) {
+                const diff = event.loaded - currentFileUploadedBytes;
+                currentFileUploadedBytes = event.loaded;
+                completedBytes += diff;
+                const percent = Math.min(
+                  99,
+                  Math.round((completedBytes / (totalBytes || 1)) * 100)
+                );
+                setUploadProgress(percent);
+              }
+            };
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  const resData = JSON.parse(xhr.responseText);
+                  resolve({ success: true, file: resData.file });
+                } catch {
+                  resolve({ success: true });
+                }
+              } else {
+                try {
+                  const resData = JSON.parse(xhr.responseText);
+                  resolve({ success: false, error: resData.error });
+                } catch {
+                  resolve({
+                    success: false,
+                    error: `Server error (${xhr.status}: ${xhr.statusText || "Upload failed"})`,
+                  });
+                }
+              }
+            };
+
+            xhr.onerror = () => {
+              resolve({ success: false });
+            };
+
+            xhr.open("POST", "/api/files");
+            xhr.send(formData);
+          });
+
+          const remaining = file.size - currentFileUploadedBytes;
+          if (remaining > 0) {
+            completedBytes += remaining;
+          }
+
+          if (uploadSuccess.success) {
+            successCount++;
+            const uploadedFile = uploadSuccess.file;
+
+            const originalRelativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+            if (withRelativePath && originalRelativePath && uploadedFile?.parentId) {
+              const parts = originalRelativePath.replace(/\\/g, "/").split("/");
+              parts.pop();
+              if (parts.length > 0) {
+                const originalDir = parts.join("/");
+                resolvedMap.set(originalDir, uploadedFile.parentId);
+              }
+            }
+          } else {
+            showToast("error", uploadSuccess.error || `Failed to upload ${file.name}`);
+          }
+
+          const percent = Math.min(
+            100,
+            Math.round((completedBytes / (totalBytes || 1)) * 100)
+          );
+          setUploadProgress(percent);
+        }
+      };
+
+      const workers: Promise<void>[] = [];
+      const limit = Math.min(CONCURRENCY_LIMIT, allowedFiles.length);
+      for (let i = 0; i < limit; i++) {
+        workers.push(worker());
       }
+      await Promise.all(workers);
 
       if (successCount > 0) {
         let msg = `${successCount} file(s) uploaded successfully`;

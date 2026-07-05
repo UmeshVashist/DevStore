@@ -5,6 +5,7 @@ import {
   saveRefreshToken,
   OAUTH_REDIRECT_COOKIE,
 } from "@/lib/google-oauth-store";
+import { clearGoogleAuthCache } from "@/lib/google-auth";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
     }
 
     saveRefreshToken(tokens.refresh_token, email);
+    clearGoogleAuthCache();
     console.log("Google Drive connected successfully", email || "");
 
     const response = NextResponse.redirect(new URL("/setup/drive?success=1", baseUrl));

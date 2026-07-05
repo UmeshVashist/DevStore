@@ -26,10 +26,16 @@ const COUNTS_CACHE_TTL = 30 * 1000; // 30 seconds
 
 const ancestorRelationCache = new Map<string, { result: boolean; timestamp: number }>();
 const RELATION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const folderPathCache = new Map<string, { id: string; timestamp: number }>();
+const FOLDER_PATH_CACHE_TTL = 10 * 1000; // 10 seconds
+const parentFolderNamesCache = new Map<string, { names: Set<string>; timestamp: number }>();
+const PARENT_NAMES_CACHE_TTL = 8 * 1000; // 8 seconds
 
 function clearRelationCache(): void {
   ancestorRelationCache.clear();
   fileCountsCache = null; // Clear file counts cache too to force update on modifications
+  folderPathCache.clear();
+  parentFolderNamesCache.clear();
 }
 
 function escapeQueryValue(value: string): string {
@@ -387,17 +393,24 @@ async function getUniqueFilename(
     }
   }
 
-  // To be case-insensitive, let's list all files in parentId once
-  const res = await drive.files.list({
-    ...DRIVE_LIST_OPTS,
-    q: `'${parentId}' in parents and trashed=false`,
-    fields: "files(name)",
-    pageSize: 1000,
-  });
+  const now = Date.now();
+  const cached = parentFolderNamesCache.get(parentId);
+  let existingNames: Set<string>;
 
-  const existingNames = new Set(
-    res.data.files?.map((f) => f.name?.toLowerCase()).filter(Boolean) || []
-  );
+  if (cached && (now - cached.timestamp < PARENT_NAMES_CACHE_TTL)) {
+    existingNames = cached.names;
+  } else {
+    const res = await drive.files.list({
+      ...DRIVE_LIST_OPTS,
+      q: `'${parentId}' in parents and trashed=false`,
+      fields: "files(name)",
+      pageSize: 1000,
+    });
+    existingNames = new Set(
+      res.data.files?.map((f) => f.name?.toLowerCase()).filter(Boolean) || []
+    );
+    parentFolderNamesCache.set(parentId, { names: existingNames, timestamp: now });
+  }
 
   let uniqueName = filename;
   let counter = 1;
@@ -406,6 +419,9 @@ async function getUniqueFilename(
     uniqueName = `${base} (${counter})${ext}`;
     counter++;
   }
+
+  // Update the cached set locally to prevent collisions with other concurrent files
+  existingNames.add(uniqueName.toLowerCase());
 
   return uniqueName;
 }
@@ -478,6 +494,13 @@ export async function ensureFolderPath(
   pathParts: string[],
   baseFolderId?: string
 ): Promise<string> {
+  const cacheKey = `${userId}:${baseFolderId || "root"}:${pathParts.join("/")}`;
+  const now = Date.now();
+  const cached = folderPathCache.get(cacheKey);
+  if (cached && (now - cached.timestamp < FOLDER_PATH_CACHE_TTL)) {
+    return cached.id;
+  }
+
   const drive = getDriveClient();
   const { filesFolderId } = await getUserFolders(userId);
   let currentId = baseFolderId || filesFolderId;
@@ -512,6 +535,7 @@ export async function ensureFolderPath(
     }
   }
 
+  folderPathCache.set(cacheKey, { id: currentId, timestamp: now });
   return currentId;
 }
 
