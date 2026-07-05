@@ -1,12 +1,47 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { Cloud, Database } from "lucide-react";
 import { motion } from "framer-motion";
 import { ThemeToggle } from "./ThemeToggle";
 import { APP_NAME } from "@/lib/constants";
 
+function formatBytes(bytesStr: string | undefined): string {
+  if (!bytesStr) return "0 B";
+  const bytes = parseInt(bytesStr, 10);
+  if (isNaN(bytes)) return "0 B";
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
 export function Header() {
+  const [quota, setQuota] = useState<{ limit?: string; usage?: string } | null>(null);
+
+  useEffect(() => {
+    async function fetchQuota() {
+      try {
+        const res = await fetch("/api/storage");
+        if (res.ok) {
+          const data = await res.json();
+          setQuota(data.quota);
+        }
+      } catch (err) {
+        console.error("Error fetching storage quota", err);
+      }
+    }
+    fetchQuota();
+  }, []);
+
+  const usageVal = quota?.usage ? parseInt(quota.usage, 10) : 0;
+  const limitVal = quota?.limit ? parseInt(quota.limit, 10) : 0;
+  const percentage = limitVal > 0 ? Math.min(100, Math.round((usageVal / limitVal) * 100)) : 0;
+  const usedText = formatBytes(quota?.usage);
+  const limitText = quota?.limit ? formatBytes(quota.limit) : "Unlimited";
+
   return (
     <motion.header
       initial={{ y: -20, opacity: 0 }}
@@ -29,6 +64,23 @@ export function Header() {
           </p>
         </div>
       </div>
+
+      {quota && (
+        <div className="hidden md:flex flex-col items-center gap-1.5 max-w-xs w-full px-4">
+          <div className="flex justify-between w-full text-[11px] text-white/70">
+            <span>Used: <span className="font-semibold text-white">{usedText}</span> of <span className="font-semibold text-white">{limitText}</span></span>
+            <span>{limitVal > 0 ? `${percentage}%` : ""}</span>
+          </div>
+          {limitVal > 0 && (
+            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden border border-white/5 relative">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500"
+                style={{ width: `${percentage}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-3">
         <ThemeToggle />

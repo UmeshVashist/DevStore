@@ -43,20 +43,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    const maxSize = MAX_FILE_SIZE_MB * 1024 * 1024;
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: `File too large. Max size is ${MAX_FILE_SIZE_MB}MB` },
-        { status: 400 }
-      );
-    }
+
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const filename = file.name;
     const mimeType = file.type || "application/octet-stream";
 
-    const ext = filename.includes(".")
-      ? "." + filename.split(".").pop()?.toLowerCase()
+    const cleanFilename = filename.trim();
+    const ext = cleanFilename.includes(".")
+      ? "." + cleanFilename.split(".").pop()?.toLowerCase().trim()
       : "";
 
     const isAllowed =

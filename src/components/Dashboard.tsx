@@ -11,6 +11,7 @@ import { TabBar, DashboardTab } from "@/components/TabBar";
 import { FolderPanel } from "@/components/FolderPanel";
 import { BreadcrumbNav } from "@/components/BreadcrumbNav";
 import { GoogleDriveBanner } from "@/components/GoogleDriveSetup";
+import { FILE_EXTENSIONS } from "@/lib/constants";
 import { AlertCircle, CheckCircle2, Scissors, Copy, Trash2, RotateCcw } from "lucide-react";
 
 export function Dashboard() {
@@ -123,13 +124,35 @@ export function Dashboard() {
     setUploadProgress(0);
     let successCount = 0;
     const resolvedMap = new Map<string, string>();
-
     const filesArray = Array.from(fileList);
-    const totalBytes = filesArray.reduce((acc, f) => acc + f.size, 0);
+    let skippedCount = 0;
+    const allowedFiles = filesArray.filter((file) => {
+      const filename = file.name.trim();
+      const ext = filename.includes(".")
+        ? "." + filename.split(".").pop()?.toLowerCase().trim()
+        : "";
+      const isAllowed = ext && FILE_EXTENSIONS.includes(ext);
+      if (!isAllowed) {
+        skippedCount++;
+        return false;
+      }
+      return true;
+    });
+
+    if (allowedFiles.length === 0) {
+      if (skippedCount > 0) {
+        showToast("error", `${skippedCount} file(s) skipped (unsupported format)`);
+      }
+      setUploading(null);
+      setUploadProgress(0);
+      return;
+    }
+
+    const totalBytes = allowedFiles.reduce((acc, f) => acc + f.size, 0);
     let completedBytes = 0;
 
     try {
-      for (const file of filesArray) {
+      for (const file of allowedFiles) {
         let finalFolderId = folderId && folderId !== "root" ? folderId : undefined;
         let finalRelativePath = withRelativePath
           ? (file as File & { webkitRelativePath?: string }).webkitRelativePath
@@ -188,7 +211,10 @@ export function Dashboard() {
                 const resData = JSON.parse(xhr.responseText);
                 resolve({ success: false, error: resData.error });
               } catch {
-                resolve({ success: false });
+                resolve({
+                  success: false,
+                  error: `Server error (${xhr.status}: ${xhr.statusText || "Upload failed"})`,
+                });
               }
             }
           };
@@ -231,8 +257,14 @@ export function Dashboard() {
       }
 
       if (successCount > 0) {
-        showToast("success", `${successCount} file(s) uploaded successfully`);
+        let msg = `${successCount} file(s) uploaded successfully`;
+        if (skippedCount > 0) {
+          msg += ` (${skippedCount} unsupported file(s) skipped)`;
+        }
+        showToast("success", msg);
         await fetchAll();
+      } else if (skippedCount > 0) {
+        showToast("error", `${skippedCount} file(s) skipped (unsupported format)`);
       }
     } finally {
       setUploading(null);

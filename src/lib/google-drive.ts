@@ -999,4 +999,17 @@ export async function moveItem(
   clearRelationCache();
 }
 
+export async function getStorageQuota(): Promise<{ limit?: string; usage?: string }> {
+  try {
+    const drive = getDriveClient();
+    const res = await drive.about.get({
+      fields: "storageQuota",
+    });
+    return res.data.storageQuota || {};
+  } catch (error) {
+    console.error("Error fetching storage quota:", error);
+    return {};
+  }
+}
+
 export { getDriveAuthMode };
