@@ -19,6 +19,7 @@ export function Dashboard() {
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<"files" | "folder" | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [activeTab, setActiveTab] = useState<DashboardTab>("files");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string }[]>([]);
@@ -119,14 +120,16 @@ export function Dashboard() {
     withRelativePath = false
   ) => {
     setUploading(withRelativePath ? "folder" : "files");
+    setUploadProgress(0);
     let successCount = 0;
     const resolvedMap = new Map<string, string>();
 
-    try {
-      for (const file of Array.from(fileList)) {
-        const formData = new FormData();
-        formData.append("file", file);
+    const filesArray = Array.from(fileList);
+    const totalBytes = filesArray.reduce((acc, f) => acc + f.size, 0);
+    let completedBytes = 0;
 
+    try {
+      for (const file of filesArray) {
         let finalFolderId = folderId && folderId !== "root" ? folderId : undefined;
         let finalRelativePath = withRelativePath
           ? (file as File & { webkitRelativePath?: string }).webkitRelativePath
@@ -147,36 +150,84 @@ export function Dashboard() {
           }
         }
 
-        if (finalFolderId) {
-          formData.append("folderId", finalFolderId);
-        }
-        if (finalRelativePath) {
-          formData.append("relativePath", finalRelativePath);
-        }
+        let currentFileUploadedBytes = 0;
+        const uploadSuccess = await new Promise<{ success: boolean; file?: any; error?: string }>((resolve) => {
+          const xhr = new XMLHttpRequest();
+          const formData = new FormData();
+          formData.append("file", file);
+          if (finalFolderId) {
+            formData.append("folderId", finalFolderId);
+          }
+          if (finalRelativePath) {
+            formData.append("relativePath", finalRelativePath);
+          }
 
-        try {
-          const res = await fetch("/api/files", { method: "POST", body: formData });
-          if (res.ok) {
-            successCount++;
-            const data = await res.json();
-            const uploadedFile = data.file;
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const diff = event.loaded - currentFileUploadedBytes;
+              currentFileUploadedBytes = event.loaded;
+              completedBytes += diff;
+              const percent = Math.min(
+                99,
+                Math.round((completedBytes / (totalBytes || 1)) * 100)
+              );
+              setUploadProgress(percent);
+            }
+          };
 
-            const originalRelativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
-            if (withRelativePath && originalRelativePath && uploadedFile?.parentId) {
-              const parts = originalRelativePath.replace(/\\/g, "/").split("/");
-              parts.pop();
-              if (parts.length > 0) {
-                const originalDir = parts.join("/");
-                resolvedMap.set(originalDir, uploadedFile.parentId);
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const resData = JSON.parse(xhr.responseText);
+                resolve({ success: true, file: resData.file });
+              } catch {
+                resolve({ success: true });
+              }
+            } else {
+              try {
+                const resData = JSON.parse(xhr.responseText);
+                resolve({ success: false, error: resData.error });
+              } catch {
+                resolve({ success: false });
               }
             }
-          } else {
-            const data = await res.json();
-            showToast("error", data.error || `Failed to upload ${file.name}`);
-          }
-        } catch {
-          showToast("error", `Upload failed for ${file.name}`);
+          };
+
+          xhr.onerror = () => {
+            resolve({ success: false });
+          };
+
+          xhr.open("POST", "/api/files");
+          xhr.send(formData);
+        });
+
+        const remaining = file.size - currentFileUploadedBytes;
+        if (remaining > 0) {
+          completedBytes += remaining;
         }
+
+        if (uploadSuccess.success) {
+          successCount++;
+          const uploadedFile = uploadSuccess.file;
+
+          const originalRelativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+          if (withRelativePath && originalRelativePath && uploadedFile?.parentId) {
+            const parts = originalRelativePath.replace(/\\/g, "/").split("/");
+            parts.pop();
+            if (parts.length > 0) {
+              const originalDir = parts.join("/");
+              resolvedMap.set(originalDir, uploadedFile.parentId);
+            }
+          }
+        } else {
+          showToast("error", uploadSuccess.error || `Failed to upload ${file.name}`);
+        }
+
+        const percent = Math.min(
+          100,
+          Math.round((completedBytes / (totalBytes || 1)) * 100)
+        );
+        setUploadProgress(percent);
       }
 
       if (successCount > 0) {
@@ -185,6 +236,7 @@ export function Dashboard() {
       }
     } finally {
       setUploading(null);
+      setUploadProgress(0);
     }
   };
 
@@ -491,6 +543,7 @@ export function Dashboard() {
               onUpload={handleUpload}
               onUploadFolder={handleUploadFolder}
               uploadingType={uploading}
+              uploadProgress={uploadProgress}
               defaultFolderId={currentFolderId}
             />
           </div>

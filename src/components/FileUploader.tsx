@@ -12,6 +12,7 @@ interface FileUploaderProps {
   onUpload: (files: FileList | File[], folderId: string) => Promise<void>;
   onUploadFolder: (files: FileList | File[], folderId: string) => Promise<void>;
   uploadingType: "files" | "folder" | null;
+  uploadProgress: number;
   defaultFolderId?: string | null;
 }
 
@@ -74,6 +75,7 @@ export function FileUploader({
   onUpload,
   onUploadFolder,
   uploadingType,
+  uploadProgress,
   defaultFolderId,
 }: FileUploaderProps) {
   const [dragOverFiles, setDragOverFiles] = useState(false);
@@ -181,7 +183,19 @@ export function FileUploader({
                 className="flex flex-col items-center gap-3 py-6"
               >
                 <Loader2 className="w-12 h-12 text-indigo-400 animate-spin" />
-                <p className="text-white/80 font-medium">Uploading Files...</p>
+                <div className="flex flex-col items-center gap-1.5">
+                  <p className="text-white/80 font-medium">
+                    {uploadProgress === 100 ? "Finishing..." : `Uploading Files... (${uploadProgress}%)`}
+                  </p>
+                  <div className="w-48 h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-indigo-400 to-purple-400"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${uploadProgress}%` }}
+                      transition={{ duration: 0.1 }}
+                    />
+                  </div>
+                </div>
               </motion.div>
             ) : (
               <motion.div
@@ -252,7 +266,19 @@ export function FileUploader({
                 className="flex flex-col items-center gap-3 py-6"
               >
                 <Loader2 className="w-12 h-12 text-purple-400 animate-spin" />
-                <p className="text-white/80 font-medium">Uploading Folder...</p>
+                <div className="flex flex-col items-center gap-1.5">
+                  <p className="text-white/80 font-medium">
+                    {uploadProgress === 100 ? "Finishing..." : `Uploading Folder... (${uploadProgress}%)`}
+                  </p>
+                  <div className="w-48 h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-purple-400 to-pink-400"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${uploadProgress}%` }}
+                      transition={{ duration: 0.1 }}
+                    />
+                  </div>
+                </div>
               </motion.div>
             ) : (
               <motion.div
