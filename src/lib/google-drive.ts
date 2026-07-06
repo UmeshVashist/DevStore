@@ -604,7 +604,7 @@ export async function uploadFile(
   userId: string,
   filename: string,
   mimeType: string,
-  buffer: Buffer,
+  mediaBody: Readable | Buffer,
   parentFolderId?: string
 ): Promise<DriveFile> {
   const drive = getDriveClient();
@@ -631,7 +631,7 @@ export async function uploadFile(
       },
       media: {
         mimeType,
-        body: Readable.from(buffer),
+        body: mediaBody,
       },
       fields: "id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents,appProperties",
     });
@@ -647,7 +647,7 @@ export async function uploadFileWithRelativePath(
   userId: string,
   relativePath: string,
   mimeType: string,
-  buffer: Buffer,
+  mediaBody: Readable | Buffer,
   baseFolderId?: string
 ): Promise<DriveFile> {
   const parts = relativePath.replace(/\\/g, "/").split("/");
@@ -658,7 +658,7 @@ export async function uploadFileWithRelativePath(
     ? await ensureFolderPath(userId, folderParts, baseFolderId)
     : baseFolderId || (await getUserFilesRoot(userId));
 
-  return uploadFile(userId, filename, mimeType, buffer, parentId);
+  return uploadFile(userId, filename, mimeType, mediaBody, parentId);
 }
 
 export async function getFile(userId: string, fileId: string): Promise<DriveFile | null> {

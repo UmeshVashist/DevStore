@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { Readable } from "stream";
 import { ALLOWED_MIME_TYPES, FILE_EXTENSIONS, MAX_FILE_SIZE_MB } from "@/lib/constants";
 import {
   listBrowseItems,
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const bodyStream = Readable.fromWeb(file.stream() as unknown as import("stream/web").ReadableStream);
     const rawFilename = file.name;
     const mimeType = file.type || "application/octet-stream";
 
@@ -83,11 +84,11 @@ export async function POST(request: NextRequest) {
         userId,
         relativePath,
         mimeType,
-        buffer,
+        bodyStream,
         targetFolderId
       );
     } else {
-      uploaded = await uploadFile(userId, filename, mimeType, buffer, targetFolderId);
+      uploaded = await uploadFile(userId, filename, mimeType, bodyStream, targetFolderId);
     }
 
     return NextResponse.json({ file: uploaded }, { status: 201 });

@@ -5,7 +5,12 @@ export const RETENTION_DAYS = parseInt(
 
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "DevData";
 
-export const MAX_FILE_SIZE_MB = parseInt(process.env.MAX_FILE_SIZE_MB || "100", 10);
+export const MAX_FILE_SIZE_MB = parseInt(
+  process.env.NEXT_PUBLIC_MAX_FILE_SIZE_MB ||
+  process.env.MAX_FILE_SIZE_MB ||
+  "100",
+  10
+);
 
 export const ALLOWED_MIME_TYPES = [
   "application/pdf",

@@ -12,7 +12,7 @@ import { TabBar, DashboardTab } from "@/components/TabBar";
 import { FolderPanel } from "@/components/FolderPanel";
 import { BreadcrumbNav } from "@/components/BreadcrumbNav";
 import { GoogleDriveBanner } from "@/components/GoogleDriveSetup";
-import { FILE_EXTENSIONS } from "@/lib/constants";
+import { FILE_EXTENSIONS, MAX_FILE_SIZE_MB } from "@/lib/constants";
 import { AlertCircle, CheckCircle2, Scissors, Copy, Trash2, RotateCcw } from "lucide-react";
 
 export function Dashboard() {
@@ -136,6 +136,11 @@ export function Dashboard() {
       const isAllowed = ext && FILE_EXTENSIONS.includes(ext);
       if (!isAllowed) {
         skippedCount++;
+        return false;
+      }
+      const maxFileSizeBytes = MAX_FILE_SIZE_MB * 1024 * 1024;
+      if (file.size > maxFileSizeBytes) {
+        showToast("error", `${file.name} is too large. Maximum allowed size is ${MAX_FILE_SIZE_MB}MB.`);
         return false;
       }
       return true;
@@ -266,7 +271,7 @@ export function Dashboard() {
                   if (xhr.status === 413) {
                     resolve({
                       success: false,
-                      error: `File too large (413). Vercel deployment allows max 4.5MB. For VPS/Nginx, please increase client_max_body_size limit.`,
+                      error: `Upload failed (413 Payload Too Large). If running on VPS/Nginx, please increase client_max_body_size to at least ${MAX_FILE_SIZE_MB}MB. If on Vercel, note that Vercel enforces a strict 4.5MB limit.`,
                     });
                   } else {
                     resolve({
