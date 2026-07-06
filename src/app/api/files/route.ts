@@ -54,6 +54,8 @@ export async function POST(request: NextRequest) {
       ? "." + cleanFilename.split(".").pop()?.toLowerCase().trim()
       : "";
 
+
+
     const isAllowed =
       ALLOWED_MIME_TYPES.includes(mimeType) ||
       (ext && FILE_EXTENSIONS.includes(ext)) ||

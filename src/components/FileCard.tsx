@@ -10,6 +10,7 @@ import {
   Clock,
   Scissors,
   Copy,
+  Edit2,
 } from "lucide-react";
 import { DriveFile } from "@/lib/file-types";
 import { FileIcon } from "./FileIcon";
@@ -25,6 +26,7 @@ interface FileCardProps {
   onRestore?: (file: DriveFile) => void;
   onCopy?: () => void;
   onCut?: () => void;
+  onRename?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   isTrash?: boolean;
@@ -42,6 +44,7 @@ export function FileCard({
   onRestore,
   onCopy,
   onCut,
+  onRename,
   onMouseEnter,
   onMouseLeave,
   isTrash = false,
@@ -60,8 +63,8 @@ export function FileCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className={`glass-card p-4 group relative border transition-all cursor-pointer ${
-        selected ? "border-indigo-500/80 bg-indigo-500/5 shadow-indigo-500/5" : "border-white/5"
+      className={`group relative border transition-all cursor-pointer p-4 rounded-2xl ${
+        selected ? "border-indigo-500/80 shadow-indigo-500/5" : "border-white/5"
       }`}
       onClick={(e) => {
         if (anySelected && onSelectToggle) {
@@ -74,6 +77,9 @@ export function FileCard({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
+      <div className={`absolute inset-0 glass-card -z-10 rounded-2xl pointer-events-none transition-all ${
+        selected ? "bg-indigo-500/5" : ""
+      }`} />
       {onSelectToggle && (
         <div
           onClick={(e) => {
@@ -99,7 +105,10 @@ export function FileCard({
           <h3 className="text-white font-medium truncate" title={file.name}>
             {file.name}
           </h3>
-          <p className="text-white/50 text-xs mt-0.5">{formatBytes(file.size)}</p>
+          <p className="text-white/50 text-xs mt-0.5">
+            {formatBytes(file.size)}
+            {file.name.includes(".") ? ` • ${file.name.split(".").pop()?.toUpperCase()}` : ""}
+          </p>
           <p className="text-white/40 text-xs">{formatDate(file.modifiedAt)}</p>
           {isTrash && daysLeft !== null && (
             <p className="text-amber-400/80 text-xs mt-1 flex items-center gap-1">
@@ -136,6 +145,7 @@ export function FileCard({
                     <ActionButton icon={Download} label="Download" onClick={() => { onDownload(file); setMenuOpen(false); }} />
                     {onCut && <ActionButton icon={Scissors} label="Cut" onClick={() => { onCut(); setMenuOpen(false); }} />}
                     {onCopy && <ActionButton icon={Copy} label="Copy" onClick={() => { onCopy(); setMenuOpen(false); }} />}
+                    {onRename && <ActionButton icon={Edit2} label="Rename" onClick={() => { onRename(); setMenuOpen(false); }} />}
                     <ActionButton icon={Trash2} label="Delete" onClick={() => { onDelete(file); setMenuOpen(false); }} danger />
                   </>
                 )}

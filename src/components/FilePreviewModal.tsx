@@ -41,7 +41,10 @@ export function FilePreviewModal({ file, onClose, onDownload }: FilePreviewModal
               <FileIcon category={file.category} size="sm" />
               <div className="min-w-0">
                 <h2 className="text-white font-semibold truncate">{file.name}</h2>
-                <p className="text-white/50 text-xs">{formatBytes(file.size)}</p>
+                <p className="text-white/50 text-xs">
+                  {formatBytes(file.size)}
+                  {file.name.includes(".") ? ` • ${file.name.split(".").pop()?.toUpperCase()}` : ""}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">

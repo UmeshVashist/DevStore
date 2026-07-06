@@ -83,6 +83,8 @@ const EXT_MAP: Record<string, FileCategory> = {
   json: "text",
   xml: "text",
   html: "text",
+  htm: "text",
+  url: "text",
   css: "text",
   js: "text",
   ts: "text",

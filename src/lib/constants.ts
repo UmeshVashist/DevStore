@@ -41,11 +41,12 @@ export const ALLOWED_MIME_TYPES = [
   "application/json",
   "application/xml",
   "text/xml",
-  "text/html",
   "text/css",
   "text/javascript",
   "application/javascript",
   "text/typescript",
+  "text/html",
+  "application/internet-shortcut",
 ];
 
 export const FILE_EXTENSIONS = [
@@ -64,7 +65,7 @@ export const FILE_EXTENSIONS = [
   // Config & Logs
   ".ini", ".inf", ".reg", ".dat", ".tmp", ".log", ".evtx", ".cfg", ".conf", ".yaml", ".yml", ".toml", ".env", ".properties",
   // Web & Code
-  ".html", ".htm", ".css", ".js", ".json", ".xml", ".php", ".asp", ".aspx", ".py", ".java", ".c", ".cpp", ".h", ".hpp", ".cs", ".go", ".rs", ".rb", ".swift", ".kt", ".ts", ".jsx", ".tsx", ".sh",
+  ".css", ".js", ".json", ".xml", ".php", ".asp", ".aspx", ".py", ".java", ".c", ".cpp", ".h", ".hpp", ".cs", ".go", ".rs", ".rb", ".swift", ".kt", ".ts", ".jsx", ".tsx", ".sh", ".html", ".htm", ".url",
   // Database
   ".db", ".sqlite", ".mdb", ".accdb", ".sql",
   // Fonts

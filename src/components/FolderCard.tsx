@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { DriveFolder } from "@/lib/file-types";
-import { Folder, RotateCcw, Trash2, Clock, MoreVertical, Scissors, Copy, FolderOpen } from "lucide-react";
+import { Folder, RotateCcw, Trash2, Clock, MoreVertical, Scissors, Copy, FolderOpen, Edit2 } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { formatDate, daysUntilPermanentDelete } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -14,6 +14,7 @@ interface FolderCardProps {
   onRestore?: (folder: DriveFolder) => void;
   onCopy?: () => void;
   onCut?: () => void;
+  onRename?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   isTrash?: boolean;
@@ -30,6 +31,7 @@ export function FolderCard({
   onRestore,
   onCopy,
   onCut,
+  onRename,
   onMouseEnter,
   onMouseLeave,
   isTrash = false,
@@ -48,8 +50,8 @@ export function FolderCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className={`glass-card p-4 group cursor-pointer relative border transition-all ${
-        selected ? "border-indigo-500/80 bg-indigo-500/5 shadow-indigo-500/5" : "border-white/5"
+      className={`group cursor-pointer relative border transition-all p-4 rounded-2xl ${
+        selected ? "border-indigo-500/80 shadow-indigo-500/5" : "border-white/5"
       }`}
       onClick={(e) => {
         if (anySelected && onSelectToggle) {
@@ -62,6 +64,9 @@ export function FolderCard({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
+      <div className={`absolute inset-0 glass-card -z-10 rounded-2xl pointer-events-none transition-all ${
+        selected ? "bg-indigo-500/5" : ""
+      }`} />
       {onSelectToggle && (
         <div
           onClick={(e) => {
@@ -150,6 +155,16 @@ export function FolderCard({
                     label="Copy"
                     onClick={() => {
                       onCopy();
+                      setMenuOpen(false);
+                    }}
+                  />
+                )}
+                {onRename && (
+                  <ActionButton
+                    icon={Edit2}
+                    label="Rename"
+                    onClick={() => {
+                      onRename();
                       setMenuOpen(false);
                     }}
                   />

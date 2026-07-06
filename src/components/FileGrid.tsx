@@ -17,6 +17,7 @@ interface FileGridProps {
   onOpenFolder?: (folder: DriveFolder) => void;
   onCopy?: (item: DriveItem) => void;
   onCut?: (item: DriveItem) => void;
+  onRename?: (item: DriveItem) => void;
   onHoverItem?: (item: DriveItem | null) => void;
   isTrash?: boolean;
   emptyMessage?: string;
@@ -34,6 +35,7 @@ export function FileGrid({
   onOpenFolder,
   onCopy,
   onCut,
+  onRename,
   onHoverItem,
   isTrash = false,
   emptyMessage = "No files yet. Upload your first file!",
@@ -95,6 +97,7 @@ export function FileGrid({
                 onRestore={onRestore ? () => onRestore(item) : undefined}
                 onCopy={onCopy ? () => onCopy(item) : undefined}
                 onCut={onCut ? () => onCut(item) : undefined}
+                onRename={onRename ? () => onRename(item) : undefined}
                 onMouseEnter={() => onHoverItem?.(item)}
                 onMouseLeave={() => onHoverItem?.(null)}
                 isTrash={isTrash}
@@ -113,6 +116,7 @@ export function FileGrid({
                 onRestore={onRestore ? () => onRestore(item) : undefined}
                 onCopy={onCopy ? () => onCopy(item) : undefined}
                 onCut={onCut ? () => onCut(item) : undefined}
+                onRename={onRename ? () => onRename(item) : undefined}
                 onMouseEnter={() => onHoverItem?.(item)}
                 onMouseLeave={() => onHoverItem?.(null)}
                 isTrash={isTrash}

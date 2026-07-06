@@ -9,6 +9,7 @@ import {
   verifyUserOwnsFile,
   verifyUserOwnsFolder,
   listTrashItems,
+  renameItem,
 } from "@/lib/google-drive";
 
 type RouteParams = { params: Promise<{ fileId: string }> };
@@ -92,6 +93,32 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     console.error("Delete file error:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to delete file" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { fileId } = await params;
+    const body = await request.json();
+    const { name } = body;
+
+    if (!name || typeof name !== "string" || name.trim() === "") {
+      return NextResponse.json({ error: "Invalid name" }, { status: 400 });
+    }
+
+    await renameItem(userId, fileId, name.trim());
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Rename error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to rename" },
       { status: 500 }
     );
   }

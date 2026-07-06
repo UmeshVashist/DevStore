@@ -1036,4 +1036,27 @@ export async function getStorageQuota(): Promise<{ limit?: string; usage?: strin
   }
 }
 
+export async function renameItem(
+  userId: string,
+  itemId: string,
+  newName: string
+): Promise<void> {
+  const drive = getDriveClient();
+  const ownsFile = await verifyUserOwnsFile(userId, itemId);
+  const ownsFolder = await verifyUserOwnsFolder(userId, itemId);
+
+  if (!ownsFile && !ownsFolder) {
+    throw new Error("Item not found or unauthorized");
+  }
+
+  await drive.files.update({
+    ...DRIVE_OPTS,
+    fileId: itemId,
+    requestBody: {
+      name: newName,
+    },
+  });
+  clearRelationCache();
+}
+
 export { getDriveAuthMode };

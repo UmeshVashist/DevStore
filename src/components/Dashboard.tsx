@@ -7,6 +7,7 @@ import { Header } from "@/components/Header";
 import { FileUploader } from "@/components/FileUploader";
 import { FileGrid } from "@/components/FileGrid";
 import { FilePreviewModal } from "@/components/FilePreviewModal";
+import { RenameModal } from "@/components/RenameModal";
 import { TabBar, DashboardTab } from "@/components/TabBar";
 import { FolderPanel } from "@/components/FolderPanel";
 import { BreadcrumbNav } from "@/components/BreadcrumbNav";
@@ -32,6 +33,7 @@ export function Dashboard() {
   } | null>(null);
   const [hoveredItem, setHoveredItem] = useState<DriveItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [renamingItem, setRenamingItem] = useState<DriveItem | null>(null);
 
   const handleSelectToggle = useCallback((item: DriveItem) => {
     setSelectedIds((prev) => {
@@ -152,6 +154,54 @@ export function Dashboard() {
     let completedBytes = 0;
 
     try {
+      if (withRelativePath) {
+        const folderPaths = new Set<string>();
+        for (const file of allowedFiles) {
+          const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+          if (relPath) {
+            const parts = relPath.replace(/\\/g, "/").split("/");
+            parts.pop(); // filename
+            if (parts.length > 0) {
+              for (let i = 1; i <= parts.length; i++) {
+                folderPaths.add(parts.slice(0, i).join("/"));
+              }
+            }
+          }
+        }
+
+        const sortedFolderPaths = Array.from(folderPaths).sort((a, b) => {
+          const depthA = a.split("/").length;
+          const depthB = b.split("/").length;
+          return depthA - depthB || a.localeCompare(b);
+        });
+
+        for (const path of sortedFolderPaths) {
+          const parts = path.split("/");
+          const lastPart = parts.pop()!;
+          const parentPath = parts.join("/");
+          const parentFolderId = parentPath
+            ? resolvedMap.get(parentPath)
+            : (folderId && folderId !== "root" ? folderId : undefined);
+
+          const res = await fetch("/api/folders/ensure", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              relativePath: lastPart,
+              baseFolderId: parentFolderId,
+            }),
+          });
+
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || `Failed to create folder structure: ${lastPart}`);
+          }
+
+          const { folderId: createdFolderId } = await res.json();
+          resolvedMap.set(path, createdFolderId);
+        }
+      }
+
       const CONCURRENCY_LIMIT = 4;
       let nextIndex = 0;
 
@@ -167,16 +217,11 @@ export function Dashboard() {
 
           if (withRelativePath && finalRelativePath) {
             const parts = finalRelativePath.replace(/\\/g, "/").split("/");
-            const filename = parts.pop() || "";
-            const dirParts = parts;
-
-            for (let i = dirParts.length; i > 0; i--) {
-              const prefixPath = dirParts.slice(0, i).join("/");
-              if (resolvedMap.has(prefixPath)) {
-                finalFolderId = resolvedMap.get(prefixPath)!;
-                finalRelativePath = [...dirParts.slice(i), filename].join("/");
-                break;
-              }
+            parts.pop(); // filename
+            const dirPath = parts.join("/");
+            if (resolvedMap.has(dirPath)) {
+              finalFolderId = resolvedMap.get(dirPath)!;
+              finalRelativePath = undefined;
             }
           }
 
@@ -241,17 +286,6 @@ export function Dashboard() {
 
           if (uploadSuccess.success) {
             successCount++;
-            const uploadedFile = uploadSuccess.file;
-
-            const originalRelativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
-            if (withRelativePath && originalRelativePath && uploadedFile?.parentId) {
-              const parts = originalRelativePath.replace(/\\/g, "/").split("/");
-              parts.pop();
-              if (parts.length > 0) {
-                const originalDir = parts.join("/");
-                resolvedMap.set(originalDir, uploadedFile.parentId);
-              }
-            }
           } else {
             showToast("error", uploadSuccess.error || `Failed to upload ${file.name}`);
           }
@@ -281,6 +315,8 @@ export function Dashboard() {
       } else if (skippedCount > 0) {
         showToast("error", `${skippedCount} file(s) skipped (unsupported format)`);
       }
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : "Failed to upload folder");
     } finally {
       setUploading(null);
       setUploadProgress(0);
@@ -551,6 +587,54 @@ export function Dashboard() {
     }
   };
 
+  const handleRename = useCallback(async (item: DriveItem, newName: string) => {
+    try {
+      const res = await fetch(`/api/files/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName }),
+      });
+
+      if (res.ok) {
+        showToast("success", `Renamed successfully to "${newName}"`);
+        await fetchAll();
+      } else {
+        const data = await res.json();
+        showToast("error", data.error || "Failed to rename");
+        throw new Error(data.error || "Failed to rename");
+      }
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : "Failed to rename");
+      throw err;
+    }
+  }, [fetchAll]);
+
+  const handlePreview = useCallback(async (file: DriveFile) => {
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "html" || ext === "htm" || ext === "url") {
+      if (ext === "url") {
+        try {
+          const res = await fetch(`/api/files/${file.id}`);
+          if (res.ok) {
+            const text = await res.text();
+            const match = text.match(/URL=(.+)/i);
+            if (match && match[1]) {
+              window.open(match[1].trim(), "_blank");
+              return;
+            }
+          }
+        } catch (err) {
+          console.error("Failed to parse URL file:", err);
+        }
+        window.open(`/api/files/${file.id}?preview=true`, "_blank");
+      } else {
+        window.open(`/api/files/${file.id}?preview=true`, "_blank");
+      }
+    } else {
+      setPreviewFile(file);
+    }
+  }, []);
+
   const handleOpenFolder = (folder: DriveFolder) => {
     setCurrentFolderId(folder.id);
     setBreadcrumb((prev) => [...prev, { id: folder.id, name: folder.name }]);
@@ -624,12 +708,13 @@ export function Dashboard() {
           <FileGrid
             items={items}
             loading={loading}
-            onPreview={setPreviewFile}
+            onPreview={handlePreview}
             onDownload={handleDownload}
             onDelete={handleDelete}
             onOpenFolder={handleOpenFolder}
             onCopy={handleCopy}
             onCut={handleCut}
+            onRename={setRenamingItem}
             onHoverItem={setHoveredItem}
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
@@ -651,6 +736,7 @@ export function Dashboard() {
             }}
             onCopy={handleCopy}
             onCut={handleCut}
+            onRename={setRenamingItem}
             onHoverItem={setHoveredItem}
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
@@ -660,7 +746,7 @@ export function Dashboard() {
           <FileGrid
             items={trashItems}
             loading={loading}
-            onPreview={setPreviewFile}
+            onPreview={handlePreview}
             onDownload={handleDownload}
             onDelete={handleDelete}
             onRestore={handleRestore}
@@ -675,6 +761,12 @@ export function Dashboard() {
           file={previewFile}
           onClose={() => setPreviewFile(null)}
           onDownload={handleDownload}
+        />
+
+        <RenameModal
+          item={renamingItem}
+          onClose={() => setRenamingItem(null)}
+          onRename={(newName) => handleRename(renamingItem!, newName)}
         />
 
         {/* Floating Multi-Select Action Bar */}
