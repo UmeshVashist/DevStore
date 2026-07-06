@@ -263,10 +263,17 @@ export function Dashboard() {
                   const resData = JSON.parse(xhr.responseText);
                   resolve({ success: false, error: resData.error });
                 } catch {
-                  resolve({
-                    success: false,
-                    error: `Server error (${xhr.status}: ${xhr.statusText || "Upload failed"})`,
-                  });
+                  if (xhr.status === 413) {
+                    resolve({
+                      success: false,
+                      error: `File too large (413). Vercel deployment allows max 4.5MB. For VPS/Nginx, please increase client_max_body_size limit.`,
+                    });
+                  } else {
+                    resolve({
+                      success: false,
+                      error: `Server error (${xhr.status}: ${xhr.statusText || "Upload failed"})`,
+                    });
+                  }
                 }
               }
             };

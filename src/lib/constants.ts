@@ -37,6 +37,8 @@ export const ALLOWED_MIME_TYPES = [
   "application/x-apple-diskimage",
   "application/vnd.android.package-archive",
   "application/x-executable",
+  "application/x-msi",
+  "application/x-phoenix-license",
   // Code & Data
   "application/json",
   "application/xml",
@@ -61,7 +63,7 @@ export const FILE_EXTENSIONS = [
   // Archives & Disks
   ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".cab", ".iso", ".img", ".vhd", ".vhdx", ".dmg",
   // System & Executables
-  ".exe", ".msi", ".bat", ".cmd", ".com", ".scr", ".ps1", ".dll", ".sys", ".drv",
+  ".exe", ".msi", ".bat", ".cmd", ".com", ".scr", ".ps1", ".dll", ".sys", ".drv", ".plf",
   // Config & Logs
   ".ini", ".inf", ".reg", ".dat", ".tmp", ".log", ".evtx", ".cfg", ".conf", ".yaml", ".yml", ".toml", ".env", ".properties",
   // Web & Code

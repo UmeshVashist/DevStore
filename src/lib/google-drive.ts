@@ -44,7 +44,8 @@ function escapeQueryValue(value: string): string {
 
 async function findOrCreateFolder(
   name: string,
-  parentId: string
+  parentId: string,
+  userId?: string
 ): Promise<string> {
   const drive = getDriveClient();
   const safeName = escapeQueryValue(name);
@@ -67,6 +68,7 @@ async function findOrCreateFolder(
       name,
       mimeType: FOLDER_MIME,
       parents: [parentId],
+      appProperties: userId ? { userId } : undefined,
     },
     fields: "id",
   });
@@ -81,9 +83,9 @@ async function getUserFolders(userId: string) {
     throw new Error("GOOGLE_DRIVE_FOLDER_ID not configured in .env.local");
   }
 
-  const userFolderId = await findOrCreateFolder(userId, rootFolderId);
-  const filesFolderId = await findOrCreateFolder("files", userFolderId);
-  const trashFolderId = await findOrCreateFolder("trash", userFolderId);
+  const userFolderId = await findOrCreateFolder(userId, rootFolderId, userId);
+  const filesFolderId = await findOrCreateFolder("files", userFolderId, userId);
+  const trashFolderId = await findOrCreateFolder("trash", userFolderId, userId);
 
   return { filesFolderId, trashFolderId };
 }
@@ -143,6 +145,22 @@ export async function verifyUserOwnsFolder(
   if (folderId === filesFolderId) return true;
   if (folderId === trashFolderId) return true;
 
+  try {
+    const drive = getDriveClient();
+    const res = await drive.files.get({
+      ...DRIVE_OPTS,
+      fileId: folderId,
+      fields: "appProperties",
+    });
+    if (res.data.appProperties?.userId === userId) {
+      const now = Date.now();
+      ancestorRelationCache.set(`${folderId}:${filesFolderId}`, { result: true, timestamp: now });
+      return true;
+    }
+  } catch (err) {
+    console.error("verifyUserOwnsFolder appProperties check failed:", err);
+  }
+
   const inFiles = await isUnderFolder(folderId, filesFolderId);
   if (inFiles) return true;
 
@@ -161,7 +179,8 @@ function mapDriveFile(file: {
   appProperties?: Record<string, string> | null;
   parents?: string[] | null;
 }): DriveFile {
-  const name = file.name || "Untitled";
+  const rawName = file.name || "Untitled";
+  const name = rawName.replace(/\\/g, "/").split("/").pop() || rawName;
   const mimeType = file.mimeType || "application/octet-stream";
 
   return {
@@ -274,9 +293,11 @@ function mapDriveFolder(
   },
   fileCounts?: Record<string, number>
 ): DriveFolder {
+  const rawName = file.name || "Untitled";
+  const name = rawName.replace(/\\/g, "/").split("/").pop() || rawName;
   return {
     id: file.id!,
-    name: file.name || "Untitled",
+    name,
     createdAt: file.createdTime || new Date().toISOString(),
     modifiedAt: file.modifiedTime || new Date().toISOString(),
     parentId: file.parents?.[0],
@@ -429,7 +450,8 @@ async function getUniqueFilename(
 async function createUniqueFolder(
   drive: drive_v3.Drive,
   name: string,
-  parentId: string
+  parentId: string,
+  userId?: string
 ): Promise<string> {
   const uniqueName = await getUniqueFilename(drive, parentId, name, FOLDER_MIME);
   const folder = await drive.files.create({
@@ -438,6 +460,7 @@ async function createUniqueFolder(
       name: uniqueName,
       mimeType: FOLDER_MIME,
       parents: [parentId],
+      appProperties: userId ? { userId } : undefined,
     },
     fields: "id",
   });
@@ -478,7 +501,7 @@ export async function createUserFolder(
     throw new Error("This Name folder already created");
   }
 
-  const folderId = await findOrCreateFolder(trimmed, parentId);
+  const folderId = await findOrCreateFolder(trimmed, parentId, userId);
   const folderRes = await drive.files.get({
     ...DRIVE_OPTS,
     fileId: folderId,
@@ -525,13 +548,13 @@ export async function ensureFolderPath(
       });
 
       if (res.data.files && res.data.files.length > 0) {
-        currentId = await createUniqueFolder(drive, part, currentId);
+        currentId = await createUniqueFolder(drive, part, currentId, userId);
       } else {
-        currentId = await findOrCreateFolder(part, currentId);
+        currentId = await findOrCreateFolder(part, currentId, userId);
       }
       isFirst = false;
     } else {
-      currentId = await findOrCreateFolder(part, currentId);
+      currentId = await findOrCreateFolder(part, currentId, userId);
     }
   }
 
@@ -604,12 +627,13 @@ export async function uploadFile(
       requestBody: {
         name: uniqueName,
         parents: [parentId],
+        appProperties: { userId },
       },
       media: {
         mimeType,
         body: Readable.from(buffer),
       },
-      fields: "id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents",
+      fields: "id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents,appProperties",
     });
 
     clearRelationCache();
@@ -915,6 +939,22 @@ export async function purgeExpiredTrash(userId: string): Promise<number> {
 export async function verifyUserOwnsFile(userId: string, fileId: string): Promise<boolean> {
   const { filesFolderId, trashFolderId } = await getUserFolders(userId);
 
+  try {
+    const drive = getDriveClient();
+    const res = await drive.files.get({
+      ...DRIVE_OPTS,
+      fileId: fileId,
+      fields: "appProperties",
+    });
+    if (res.data.appProperties?.userId === userId) {
+      const now = Date.now();
+      ancestorRelationCache.set(`${fileId}:${filesFolderId}`, { result: true, timestamp: now });
+      return true;
+    }
+  } catch (err) {
+    console.error("verifyUserOwnsFile appProperties check failed:", err);
+  }
+
   const inFiles = await isUnderFolder(fileId, filesFolderId);
   if (inFiles) return true;
 
@@ -940,6 +980,7 @@ export async function copyFile(
     fileId,
     requestBody: {
       parents: [destId],
+      appProperties: { userId },
     },
   });
   clearRelationCache();
@@ -966,7 +1007,7 @@ export async function copyFolder(
     fields: "name",
   });
 
-  const newFolderId = await findOrCreateFolder(srcMeta.data.name || "Copied Folder", destId);
+  const newFolderId = await findOrCreateFolder(srcMeta.data.name || "Copied Folder", destId, userId);
 
   const res = await drive.files.list({
     ...DRIVE_LIST_OPTS,
@@ -984,6 +1025,7 @@ export async function copyFolder(
         fileId: item.id!,
         requestBody: {
           parents: [newFolderId],
+          appProperties: { userId },
         },
       });
     }

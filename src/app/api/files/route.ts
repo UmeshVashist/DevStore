@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { ALLOWED_MIME_TYPES, FILE_EXTENSIONS } from "@/lib/constants";
+import { ALLOWED_MIME_TYPES, FILE_EXTENSIONS, MAX_FILE_SIZE_MB } from "@/lib/constants";
 import {
   listBrowseItems,
   uploadFile,
@@ -43,13 +43,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      return NextResponse.json(
+        { error: `File size exceeds the limit of ${MAX_FILE_SIZE_MB}MB` },
+        { status: 413 }
+      );
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const filename = file.name;
+    const rawFilename = file.name;
     const mimeType = file.type || "application/octet-stream";
 
-    const cleanFilename = filename.trim();
+    const filename = rawFilename.replace(/\\/g, "/").split("/").pop()?.trim() || rawFilename.trim();
+    const cleanFilename = filename;
     const ext = cleanFilename.includes(".")
       ? "." + cleanFilename.split(".").pop()?.toLowerCase().trim()
       : "";

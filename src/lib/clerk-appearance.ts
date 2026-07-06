@@ -17,6 +17,10 @@ export const clerkAppearance: Appearance = {
     headerSubtitle: "text-white/60",
     socialButtonsBlockButton:
       "bg-white/10 border border-white/20 text-white hover:bg-white/20",
+    socialButtonsBlockButtonText: "text-white font-medium",
+    alternativeMethodsBlockButton:
+      "bg-white/10 border border-white/20 text-white hover:bg-white/20",
+    alternativeMethodsBlockButtonText: "text-white font-medium",
     formFieldLabel: "text-white/80",
     formFieldInput: "bg-white/10 border border-white/20 text-white placeholder:text-white/40",
     formButtonPrimary:
