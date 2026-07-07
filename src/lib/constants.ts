@@ -8,7 +8,7 @@ export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "DevData";
 export const MAX_FILE_SIZE_MB = parseInt(
   process.env.NEXT_PUBLIC_MAX_FILE_SIZE_MB ||
   process.env.MAX_FILE_SIZE_MB ||
-  "100",
+  "2000",
   10
 );
 
