@@ -1107,7 +1107,8 @@ export async function createUploadSession(
   filename: string,
   mimeType: string,
   fileSize: number,
-  parentFolderId?: string
+  parentFolderId?: string,
+  origin?: string
 ): Promise<{ uploadUrl: string; uniqueName: string; parentId: string }> {
   const drive = getDriveClient();
   const { filesFolderId } = await getUserFolders(userId);
@@ -1131,17 +1132,23 @@ export async function createUploadSession(
     throw new Error("Failed to retrieve Google API access token");
   }
 
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${accessToken}`,
+    "Content-Type": "application/json; charset=UTF-8",
+    "X-Upload-Content-Type": mimeType || "application/octet-stream",
+    "X-Upload-Content-Length": fileSize.toString(),
+  };
+
+  if (origin) {
+    headers["Origin"] = origin;
+  }
+
   // Initiate resumable upload session
   const response = await fetch(
     "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
     {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json; charset=UTF-8",
-        "X-Upload-Content-Type": mimeType || "application/octet-stream",
-        "X-Upload-Content-Length": fileSize.toString(),
-      },
+      headers,
       body: JSON.stringify({
         name: uniqueName,
         parents: [parentId],
@@ -1168,7 +1175,8 @@ export async function createUploadSessionWithRelativePath(
   relativePath: string,
   mimeType: string,
   fileSize: number,
-  baseFolderId?: string
+  baseFolderId?: string,
+  origin?: string
 ): Promise<{ uploadUrl: string; uniqueName: string; parentId: string }> {
   const parts = relativePath.replace(/\\/g, "/").split("/");
   const filename = parts.pop() || "file";
@@ -1178,7 +1186,7 @@ export async function createUploadSessionWithRelativePath(
     ? await ensureFolderPath(userId, folderParts, baseFolderId)
     : baseFolderId || (await getUserFilesRoot(userId));
 
-  return createUploadSession(userId, filename, mimeType, fileSize, parentId);
+  return createUploadSession(userId, filename, mimeType, fileSize, parentId, origin);
 }
 
 export { getDriveAuthMode };

@@ -53,6 +53,8 @@ export async function POST(request: NextRequest) {
 
     const targetFolderId = folderId && folderId !== "root" ? folderId : undefined;
 
+    const origin = request.headers.get("origin") || "";
+
     let session;
     if (relativePath) {
       session = await createUploadSessionWithRelativePath(
@@ -60,7 +62,8 @@ export async function POST(request: NextRequest) {
         relativePath,
         mimeType,
         size,
-        targetFolderId
+        targetFolderId,
+        origin || undefined
       );
     } else {
       session = await createUploadSession(
@@ -68,7 +71,8 @@ export async function POST(request: NextRequest) {
         filename,
         mimeType,
         size,
-        targetFolderId
+        targetFolderId,
+        origin || undefined
       );
     }
 
