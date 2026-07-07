@@ -14,6 +14,7 @@ import {
   formatDriveError,
   getDriveAuthMode,
   getDriveClient,
+  getGoogleAuth,
 } from "./google-auth";
 
 // Memory caches to significantly boost performance on Vercel
@@ -31,7 +32,7 @@ const FOLDER_PATH_CACHE_TTL = 10 * 1000; // 10 seconds
 const parentFolderNamesCache = new Map<string, { names: Set<string>; timestamp: number }>();
 const PARENT_NAMES_CACHE_TTL = 8 * 1000; // 8 seconds
 
-function clearRelationCache(): void {
+export function clearRelationCache(): void {
   ancestorRelationCache.clear();
   fileCountsCache = null; // Clear file counts cache too to force update on modifications
   folderPathCache.clear();
@@ -1099,6 +1100,85 @@ export async function renameItem(
     },
   });
   clearRelationCache();
+}
+
+export async function createUploadSession(
+  userId: string,
+  filename: string,
+  mimeType: string,
+  fileSize: number,
+  parentFolderId?: string
+): Promise<{ uploadUrl: string; uniqueName: string; parentId: string }> {
+  const drive = getDriveClient();
+  const { filesFolderId } = await getUserFolders(userId);
+
+  let parentId = filesFolderId;
+  if (parentFolderId) {
+    const owns = await verifyUserOwnsFolder(userId, parentFolderId);
+    if (!owns) throw new Error("Destination folder not found");
+    parentId = parentFolderId;
+  }
+
+  // Resolve unique name for file uploads
+  const uniqueName = await getUniqueFilename(drive, parentId, filename, mimeType);
+
+  // Get the authorization token
+  const auth = getGoogleAuth();
+  const tokenInfo = await auth.getAccessToken();
+  const accessToken = tokenInfo.token;
+
+  if (!accessToken) {
+    throw new Error("Failed to retrieve Google API access token");
+  }
+
+  // Initiate resumable upload session
+  const response = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": mimeType || "application/octet-stream",
+        "X-Upload-Content-Length": fileSize.toString(),
+      },
+      body: JSON.stringify({
+        name: uniqueName,
+        parents: [parentId],
+        appProperties: { userId },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to initiate Google Drive upload session: ${response.statusText} - ${errorText}`);
+  }
+
+  const uploadUrl = response.headers.get("Location");
+  if (!uploadUrl) {
+    throw new Error("Google Drive did not return a session upload URL in the Location header");
+  }
+
+  return { uploadUrl, uniqueName, parentId };
+}
+
+export async function createUploadSessionWithRelativePath(
+  userId: string,
+  relativePath: string,
+  mimeType: string,
+  fileSize: number,
+  baseFolderId?: string
+): Promise<{ uploadUrl: string; uniqueName: string; parentId: string }> {
+  const parts = relativePath.replace(/\\/g, "/").split("/");
+  const filename = parts.pop() || "file";
+  const folderParts = parts;
+
+  const parentId = folderParts.length
+    ? await ensureFolderPath(userId, folderParts, baseFolderId)
+    : baseFolderId || (await getUserFilesRoot(userId));
+
+  return createUploadSession(userId, filename, mimeType, fileSize, parentId);
 }
 
 export { getDriveAuthMode };

@@ -231,64 +231,116 @@ export function Dashboard() {
           }
 
           let currentFileUploadedBytes = 0;
-          const uploadSuccess = await new Promise<{ success: boolean; file?: DriveFile; error?: string }>((resolve) => {
-            const xhr = new XMLHttpRequest();
-            const formData = new FormData();
-            formData.append("file", file);
-            if (finalFolderId) {
-              formData.append("folderId", finalFolderId);
-            }
-            if (finalRelativePath) {
-              formData.append("relativePath", finalRelativePath);
-            }
+          const uploadSuccess = await new Promise<{ success: boolean; file?: DriveFile; error?: string }>(async (resolve) => {
+            try {
+              // 1. Get upload session URL from our server
+              const sessionRes = await fetch("/api/files/upload-session", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  filename: file.name,
+                  mimeType: file.type || "application/octet-stream",
+                  size: file.size,
+                  folderId: finalFolderId,
+                  relativePath: finalRelativePath,
+                }),
+              });
 
-            xhr.upload.onprogress = (event) => {
-              if (event.lengthComputable) {
-                const diff = event.loaded - currentFileUploadedBytes;
-                currentFileUploadedBytes = event.loaded;
-                completedBytes += diff;
-                const percent = Math.min(
-                  99,
-                  Math.round((completedBytes / (totalBytes || 1)) * 100)
-                );
-                setUploadProgress(percent);
+              if (!sessionRes.ok) {
+                const data = await sessionRes.json().catch(() => ({}));
+                resolve({
+                  success: false,
+                  error: data.error || `Failed to initiate session for ${file.name}`,
+                });
+                return;
               }
-            };
 
-            xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                try {
-                  const resData = JSON.parse(xhr.responseText);
-                  resolve({ success: true, file: resData.file });
-                } catch {
-                  resolve({ success: true });
+              const { uploadUrl } = await sessionRes.json();
+              if (!uploadUrl) {
+                resolve({
+                  success: false,
+                  error: `Server did not return an upload session URL for ${file.name}`,
+                });
+                return;
+              }
+
+              // 2. Upload file directly to Google Drive uploadUrl via PUT
+              const xhr = new XMLHttpRequest();
+              
+              xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                  const diff = event.loaded - currentFileUploadedBytes;
+                  currentFileUploadedBytes = event.loaded;
+                  completedBytes += diff;
+                  const percent = Math.min(
+                    99,
+                    Math.round((completedBytes / (totalBytes || 1)) * 100)
+                  );
+                  setUploadProgress(percent);
                 }
-              } else {
-                try {
-                  const resData = JSON.parse(xhr.responseText);
-                  resolve({ success: false, error: resData.error });
-                } catch {
-                  if (xhr.status === 413) {
+              };
+
+              xhr.onload = async () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  try {
+                    const resData = JSON.parse(xhr.responseText);
+                    const fileId = resData.id;
+                    if (!fileId) {
+                      resolve({ success: true });
+                      return;
+                    }
+
+                    // 3. Fetch full metadata from our server for the dashboard
+                    const metaRes = await fetch(`/api/files/${fileId}?meta=true`);
+                    if (metaRes.ok) {
+                      const metaData = await metaRes.json();
+                      resolve({ success: true, file: metaData.file });
+                    } else {
+                      // Fallback: return minimal mapped object if metadata endpoint failed
+                      resolve({
+                        success: true,
+                        file: {
+                          id: fileId,
+                          name: file.name,
+                          mimeType: file.type || "application/octet-stream",
+                          size: file.size,
+                          createdAt: new Date().toISOString(),
+                          modifiedAt: new Date().toISOString(),
+                          category: "other",
+                          isFolder: false,
+                        } as DriveFile,
+                      });
+                    }
+                  } catch {
+                    resolve({ success: true });
+                  }
+                } else {
+                  try {
+                    const resData = JSON.parse(xhr.responseText);
+                    resolve({ success: false, error: resData.error || "Google Drive upload error" });
+                  } catch {
                     resolve({
                       success: false,
-                      error: `Upload failed (413 Payload Too Large). If running on VPS/Nginx, please increase client_max_body_size to at least ${MAX_FILE_SIZE_MB}MB. If on Vercel, note that Vercel enforces a strict 4.5MB limit.`,
-                    });
-                  } else {
-                    resolve({
-                      success: false,
-                      error: `Server error (${xhr.status}: ${xhr.statusText || "Upload failed"})`,
+                      error: `Google Drive upload error (${xhr.status}: ${xhr.statusText || "Upload failed"})`,
                     });
                   }
                 }
-              }
-            };
+              };
 
-            xhr.onerror = () => {
-              resolve({ success: false });
-            };
+              xhr.onerror = () => {
+                resolve({ success: false, error: "Network error uploading to Google Drive" });
+              };
 
-            xhr.open("POST", "/api/files");
-            xhr.send(formData);
+              xhr.open("PUT", uploadUrl);
+              xhr.setRequestHeader("Content-Range", `bytes 0-${file.size - 1}/${file.size}`);
+              xhr.send(file);
+
+            } catch (err) {
+              resolve({
+                success: false,
+                error: err instanceof Error ? err.message : "Error initiating upload",
+              });
+            }
           });
 
           const remaining = file.size - currentFileUploadedBytes;
