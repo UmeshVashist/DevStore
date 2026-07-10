@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
   const url = oauth2.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
+    state: userId,
     scope: [
       "https://www.googleapis.com/auth/drive",
       "openid",

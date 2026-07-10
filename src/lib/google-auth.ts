@@ -61,8 +61,8 @@ export function hasServiceAccountCredentials(): boolean {
   return Boolean(readServiceAccountFromEnv() || readServiceAccountFromFile());
 }
 
-export function isDriveConfigured(): boolean {
-  return isOAuthConfigured() || hasServiceAccountCredentials();
+export function isDriveConfigured(userId?: string): boolean {
+  return isOAuthConfigured(userId) || hasServiceAccountCredentials();
 }
 
 function getServiceAccountAuth() {
@@ -81,8 +81,8 @@ function getServiceAccountAuth() {
   });
 }
 
-export function getDriveAuthMode(): DriveAuthMode {
-  if (isOAuthConfigured()) return "oauth";
+export function getDriveAuthMode(userId?: string): DriveAuthMode {
+  if (isOAuthConfigured(userId)) return "oauth";
   if (hasServiceAccountCredentials()) return "service_account";
   return "oauth";
 }

@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { deleteStoredAccount } from "@/lib/google-oauth-store";
+import { deleteStoredAccount, fetchAndCacheAccounts } from "@/lib/google-oauth-store";
 import { clearGoogleAuthCache } from "@/lib/google-auth";
 
 export async function POST(request: NextRequest) {
@@ -10,6 +10,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    await fetchAndCacheAccounts(userId);
+
     const body = await request.json();
     const { email } = body;
 
@@ -17,7 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    const deleted = deleteStoredAccount(email);
+    const deleted = await deleteStoredAccount(email, userId);
     clearGoogleAuthCache();
 
     if (!deleted) {

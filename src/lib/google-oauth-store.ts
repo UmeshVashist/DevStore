@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 
 const TOKEN_FILE = path.join(process.cwd(), ".google-oauth.json");
 
@@ -19,45 +20,78 @@ export function getOAuthRedirectUri(origin?: string): string {
   return `${base.replace(/\/$/, "")}/api/auth/google/callback`;
 }
 
-export function getStoredAccounts(): GoogleOAuthStore[] {
+// In-memory request cache to keep accounts synchronized synchronously
+export const accountsCache = new Map<string, GoogleOAuthStore[]>();
+
+export async function fetchAndCacheAccounts(userId: string): Promise<GoogleOAuthStore[]> {
+  try {
+    const client = await clerkClient();
+    const user = await client.users.getUser(userId);
+    const accounts = (user.privateMetadata?.googleAccounts as GoogleOAuthStore[]) || [];
+    accountsCache.set(userId, accounts);
+    return accounts;
+  } catch (err) {
+    console.error("Error fetching accounts from Clerk:", err);
+    return accountsCache.get(userId) || [];
+  }
+}
+
+export function getStoredAccounts(userId?: string): GoogleOAuthStore[] {
+  // 1. Try to get from request-scoped in-memory cache
+  const resolvedUserId = userId;
+  if (resolvedUserId && accountsCache.has(resolvedUserId)) {
+    const cached = accountsCache.get(resolvedUserId)!;
+    if (cached.length > 0) {
+      return cached;
+    }
+  } else if (!resolvedUserId && accountsCache.size > 0) {
+    const firstCached = Array.from(accountsCache.values())[0];
+    if (firstCached.length > 0) {
+      return firstCached;
+    }
+  }
+
+  // 2. Fallback to local .google-oauth.json file (useful for scripts & local development)
   try {
     if (fs.existsSync(TOKEN_FILE)) {
       const content = fs.readFileSync(TOKEN_FILE, "utf-8").trim();
       if (!content) return [];
       const parsed = JSON.parse(content);
+      let fileAccounts: GoogleOAuthStore[] = [];
       
       // Support old single-account format
       if (parsed.refresh_token) {
-        return [{
+        fileAccounts = [{
           refresh_token: parsed.refresh_token,
           email: parsed.email,
           name: parsed.name,
           connected_at: parsed.connected_at || new Date().toISOString()
         }];
+      } else if (Array.isArray(parsed)) { // Support array directly
+        fileAccounts = parsed;
+      } else if (parsed && Array.isArray(parsed.accounts)) { // Support new format: { accounts: [...] }
+        fileAccounts = parsed.accounts;
       }
-      
-      // Support array directly
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-      
-      // Support new format: { accounts: [...] }
-      if (parsed && Array.isArray(parsed.accounts)) {
-        return parsed.accounts;
+
+      if (fileAccounts.length > 0) {
+        if (resolvedUserId) {
+          accountsCache.set(resolvedUserId, fileAccounts);
+        }
+        return fileAccounts;
       }
     }
   } catch (err) {
-    console.error("Error reading stored accounts:", err);
+    console.error("Error reading stored accounts file:", err);
   }
   return [];
 }
 
-export function getStoredRefreshToken(email?: string): string | undefined {
+export function getStoredRefreshToken(email?: string, userId?: string): string | undefined {
   if (process.env.GOOGLE_OAUTH_REFRESH_TOKEN && !email) {
     return process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
   }
 
-  const accounts = getStoredAccounts();
+  const accounts = getStoredAccounts(userId);
   if (accounts.length === 0) return undefined;
 
   if (email && email !== "all") {
@@ -70,7 +104,7 @@ export function getStoredRefreshToken(email?: string): string | undefined {
   return accounts[0]?.refresh_token;
 }
 
-export function getStoredOAuthInfo(email?: string): GoogleOAuthStore | null {
+export function getStoredOAuthInfo(email?: string, userId?: string): GoogleOAuthStore | null {
   if (process.env.GOOGLE_OAUTH_REFRESH_TOKEN && !email) {
     return {
       refresh_token: process.env.GOOGLE_OAUTH_REFRESH_TOKEN,
@@ -78,7 +112,7 @@ export function getStoredOAuthInfo(email?: string): GoogleOAuthStore | null {
     };
   }
 
-  const accounts = getStoredAccounts();
+  const accounts = getStoredAccounts(userId);
   if (accounts.length === 0) return null;
 
   if (email && email !== "all") {
@@ -91,8 +125,16 @@ export function getStoredOAuthInfo(email?: string): GoogleOAuthStore | null {
   return accounts[0] || null;
 }
 
-export function saveRefreshToken(refreshToken: string, email?: string): void {
-  const accounts = getStoredAccounts();
+export async function saveRefreshToken(refreshToken: string, email?: string, userId?: string): Promise<void> {
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    try {
+      const authSession = await auth();
+      resolvedUserId = authSession.userId || undefined;
+    } catch {}
+  }
+
+  const accounts = getStoredAccounts(resolvedUserId);
   const existingIndex = accounts.findIndex(
     (acc) =>
       email &&
@@ -115,12 +157,43 @@ export function saveRefreshToken(refreshToken: string, email?: string): void {
     accounts.push(newAccount);
   }
 
-  const data: GoogleOAuthStoreMulti = { accounts };
-  fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+  // Update memory cache
+  if (resolvedUserId) {
+    accountsCache.set(resolvedUserId, accounts);
+    
+    // Save to Clerk Private Metadata (for cloud/Vercel persistence)
+    try {
+      const client = await clerkClient();
+      await client.users.updateUserMetadata(resolvedUserId, {
+        privateMetadata: {
+          googleAccounts: accounts,
+        },
+      });
+      console.log(`Saved token for ${email} to Clerk metadata.`);
+    } catch (err) {
+      console.error("Failed to save tokens to Clerk metadata:", err);
+    }
+  }
+
+  // Fallback: Write local file (for local development fallback)
+  try {
+    const data: GoogleOAuthStoreMulti = { accounts };
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch {
+    console.warn("Local token file write skipped (normal on read-only environments like Vercel).");
+  }
 }
 
-export function updateStoredAccountName(email: string, name: string): boolean {
-  const accounts = getStoredAccounts();
+export async function updateStoredAccountName(email: string, name: string, userId?: string): Promise<boolean> {
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    try {
+      const authSession = await auth();
+      resolvedUserId = authSession.userId || undefined;
+    } catch {}
+  }
+
+  const accounts = getStoredAccounts(resolvedUserId);
   const existing = accounts.find(
     (acc) =>
       email &&
@@ -130,15 +203,40 @@ export function updateStoredAccountName(email: string, name: string): boolean {
 
   if (existing) {
     existing.name = name;
-    const data: GoogleOAuthStoreMulti = { accounts };
-    fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+    
+    if (resolvedUserId) {
+      accountsCache.set(resolvedUserId, accounts);
+      try {
+        const client = await clerkClient();
+        await client.users.updateUserMetadata(resolvedUserId, {
+          privateMetadata: {
+            googleAccounts: accounts,
+          },
+        });
+      } catch (err) {
+        console.error("Failed to rename account in Clerk metadata:", err);
+      }
+    }
+
+    try {
+      const data: GoogleOAuthStoreMulti = { accounts };
+      fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+    } catch {}
     return true;
   }
   return false;
 }
 
-export function deleteStoredAccount(email: string): boolean {
-  const accounts = getStoredAccounts();
+export async function deleteStoredAccount(email: string, userId?: string): Promise<boolean> {
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    try {
+      const authSession = await auth();
+      resolvedUserId = authSession.userId || undefined;
+    } catch {}
+  }
+
+  const accounts = getStoredAccounts(resolvedUserId);
   const initialLength = accounts.length;
   const filtered = accounts.filter(
     (acc) => !acc.email || acc.email.toLowerCase() !== email.toLowerCase()
@@ -148,15 +246,31 @@ export function deleteStoredAccount(email: string): boolean {
     return false;
   }
 
-  const data: GoogleOAuthStoreMulti = { accounts: filtered };
-  fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+  if (resolvedUserId) {
+    accountsCache.set(resolvedUserId, filtered);
+    try {
+      const client = await clerkClient();
+      await client.users.updateUserMetadata(resolvedUserId, {
+        privateMetadata: {
+          googleAccounts: filtered,
+        },
+      });
+    } catch (err) {
+      console.error("Failed to delete account from Clerk metadata:", err);
+    }
+  }
+
+  try {
+    const data: GoogleOAuthStoreMulti = { accounts: filtered };
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch {}
   return true;
 }
 
-export function isOAuthConfigured(): boolean {
+export function isOAuthConfigured(userId?: string): boolean {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const refreshToken = getStoredRefreshToken();
+  const refreshToken = getStoredRefreshToken(undefined, userId);
   return Boolean(clientId && clientSecret && refreshToken);
 }
 

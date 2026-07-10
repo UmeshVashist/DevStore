@@ -10,17 +10,29 @@ import {
 import {
   getStoredAccounts,
   hasOAuthClientCredentials,
+  fetchAndCacheAccounts,
 } from "@/lib/google-oauth-store";
 
 export async function GET() {
-  const { userId } = await auth();
-  if (!userId) {
+  let userId: string | null = null;
+  try {
+    const authSession = await auth();
+    userId = authSession.userId;
+  } catch {}
+
+  const isDev = process.env.NODE_ENV === "development";
+
+  if (!userId && !isDev) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const accounts = getStoredAccounts();
-  const authMode = getDriveAuthMode();
-  const connected = isDriveConfigured();
+  if (userId) {
+    await fetchAndCacheAccounts(userId);
+  }
+
+  const accounts = getStoredAccounts(userId || undefined);
+  const authMode = getDriveAuthMode(userId || undefined);
+  const connected = isDriveConfigured(userId || undefined);
 
   const formattedAccounts = accounts.map((acc) => ({
     email: acc.email,

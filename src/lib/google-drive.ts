@@ -16,7 +16,8 @@ import {
   getDriveClient,
   getGoogleAuth,
 } from "./google-auth";
-import { getStoredAccounts } from "./google-oauth-store";
+import { getStoredAccounts, fetchAndCacheAccounts } from "./google-oauth-store";
+import { auth } from "@clerk/nextjs/server";
 
 // Memory caches to significantly boost performance on Vercel
 interface FileCountsCache {
@@ -45,6 +46,13 @@ function escapeQueryValue(value: string): string {
 }
 
 async function resolveDriveEmail(driveEmail?: string): Promise<string | undefined> {
+  try {
+    const authSession = await auth();
+    if (authSession.userId) {
+      await fetchAndCacheAccounts(authSession.userId);
+    }
+  } catch {}
+
   if (driveEmail === "all") {
     const accounts = getStoredAccounts();
     if (accounts.length === 0) return undefined;
@@ -1260,6 +1268,13 @@ export async function moveItem(
 }
 
 export async function getStorageQuota(driveEmail?: string): Promise<{ limit?: string; usage?: string }> {
+  try {
+    const authSession = await auth();
+    if (authSession.userId) {
+      await fetchAndCacheAccounts(authSession.userId);
+    }
+  } catch {}
+
   if (driveEmail === "all") {
     const accounts = getStoredAccounts();
     if (accounts.length === 0) {

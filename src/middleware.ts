@@ -14,13 +14,14 @@ const isAuthPage = createRouteMatcher([
 
 export default clerkMiddleware(async (auth, request) => {
   const { userId } = await auth();
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
 
   // Already signed in → go to dashboard
   if (userId && isAuthPage(request)) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  if (!isPublicRoute(request)) {
+  if (!isPublicRoute(request) && !isApiRoute) {
     await auth.protect();
   }
 });

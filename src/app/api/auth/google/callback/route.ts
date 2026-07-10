@@ -7,9 +7,12 @@ import {
 } from "@/lib/google-oauth-store";
 import { clearGoogleAuthCache } from "@/lib/google-auth";
 
+import { auth } from "@clerk/nextjs/server";
+
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const error = request.nextUrl.searchParams.get("error");
+  const stateUserId = request.nextUrl.searchParams.get("state");
   const baseUrl = request.nextUrl.origin;
 
   if (error || !code) {
@@ -50,7 +53,15 @@ export async function GET(request: NextRequest) {
       // email optional
     }
 
-    saveRefreshToken(tokens.refresh_token, email);
+    let userId = stateUserId || undefined;
+    if (!userId) {
+      try {
+        const authSession = await auth();
+        userId = authSession.userId || undefined;
+      } catch {}
+    }
+
+    await saveRefreshToken(tokens.refresh_token, email, userId);
     clearGoogleAuthCache();
     console.log("Google Drive connected successfully", email || "");
 
