@@ -9,11 +9,13 @@ import { FolderSelector } from "./FolderSelector";
 
 interface FileUploaderProps {
   folders: DriveFolder[];
-  onUpload: (files: FileList | File[], folderId: string) => Promise<void>;
-  onUploadFolder: (files: FileList | File[], folderId: string) => Promise<void>;
+  onUpload: (files: FileList | File[], folderId: string, driveEmail?: string) => Promise<void>;
+  onUploadFolder: (files: FileList | File[], folderId: string, driveEmail?: string) => Promise<void>;
   uploadingType: "files" | "folder" | null;
   uploadProgress: number;
   defaultFolderId?: string | null;
+  accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
+  activeDriveEmail?: string;
 }
 
 // Helper to recursively read all entries of a directory reader
@@ -77,24 +79,40 @@ export function FileUploader({
   uploadingType,
   uploadProgress,
   defaultFolderId,
+  accounts = [],
+  activeDriveEmail = "all",
 }: FileUploaderProps) {
   const [dragOverFiles, setDragOverFiles] = useState(false);
   const [dragOverFolder, setDragOverFolder] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState("root");
 
+  // Local target drive state for root uploads
+  const [uploadDrive, setUploadDrive] = useState<string>("auto");
+
   useEffect(() => {
     setSelectedFolder(defaultFolderId || "root");
   }, [defaultFolderId]);
+
+  useEffect(() => {
+    if (activeDriveEmail && activeDriveEmail !== "all") {
+      setUploadDrive(activeDriveEmail);
+    } else {
+      setUploadDrive("auto");
+    }
+  }, [activeDriveEmail]);
 
   const handleDropFiles = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
       setDragOverFiles(false);
       if (e.dataTransfer.files.length > 0) {
-        await onUpload(e.dataTransfer.files, selectedFolder);
+        const folderEmail = selectedFolder !== "root" 
+          ? folders.find(f => f.id === selectedFolder)?.driveEmail 
+          : (uploadDrive === "auto" ? undefined : uploadDrive);
+        await onUpload(e.dataTransfer.files, selectedFolder, folderEmail);
       }
     },
-    [onUpload, selectedFolder]
+    [onUpload, selectedFolder, folders, uploadDrive]
   );
 
   const handleDropFolder = useCallback(
@@ -111,23 +129,32 @@ export function FileUploader({
         const filesArrays = await Promise.all(filesPromises);
         const files = filesArrays.flat();
         if (files.length > 0) {
-          await onUploadFolder(files, selectedFolder);
+          const folderEmail = selectedFolder !== "root" 
+            ? folders.find(f => f.id === selectedFolder)?.driveEmail 
+            : (uploadDrive === "auto" ? undefined : uploadDrive);
+          await onUploadFolder(files, selectedFolder, folderEmail);
         }
       }
     },
-    [onUploadFolder, selectedFolder]
+    [onUploadFolder, selectedFolder, folders, uploadDrive]
   );
 
   const handleChangeFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      await onUpload(e.target.files, selectedFolder);
+      const folderEmail = selectedFolder !== "root" 
+        ? folders.find(f => f.id === selectedFolder)?.driveEmail 
+        : (uploadDrive === "auto" ? undefined : uploadDrive);
+      await onUpload(e.target.files, selectedFolder, folderEmail);
       e.target.value = "";
     }
   };
 
   const handleChangeFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      await onUploadFolder(e.target.files, selectedFolder);
+      const folderEmail = selectedFolder !== "root" 
+        ? folders.find(f => f.id === selectedFolder)?.driveEmail 
+        : (uploadDrive === "auto" ? undefined : uploadDrive);
+      await onUploadFolder(e.target.files, selectedFolder, folderEmail);
       e.target.value = "";
     }
   };
@@ -143,12 +170,52 @@ export function FileUploader({
       transition={{ delay: 0.1 }}
       className="mb-8 relative z-20"
     >
-      <FolderSelector
-        folders={folders}
-        value={selectedFolder}
-        onChange={setSelectedFolder}
-        label="Upload to destination:"
-      />
+      <div className="flex flex-col md:flex-row items-end gap-4 w-full">
+        <div className="flex-1 w-full">
+          <FolderSelector
+            folders={folders}
+            value={selectedFolder}
+            onChange={setSelectedFolder}
+            label="Upload to destination:"
+          />
+        </div>
+        <div className="w-full md:w-64">
+          <label className="block text-white/70 text-sm mb-2 font-medium">
+            Upload Target Drive:
+          </label>
+          {selectedFolder !== "root" ? (
+            <div className="glass-input w-full px-4 py-2.5 text-indigo-300 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold truncate flex items-center gap-1.5 cursor-not-allowed">
+              <span>☁️</span>
+              <span className="truncate">
+                {(() => {
+                  const targetFolder = folders.find(f => f.id === selectedFolder);
+                  const folderEmail = targetFolder?.driveEmail;
+                  const driveAcc = accounts?.find(a => a.email === folderEmail);
+                  return driveAcc?.name || folderEmail || "Unknown Drive";
+                })()}
+              </span>
+              <span className="text-[10px] text-white/40 font-normal shrink-0">(Fixed by folder)</span>
+            </div>
+          ) : (
+            <select
+              value={uploadDrive}
+              onChange={(e) => setUploadDrive(e.target.value)}
+              className="glass-input w-full px-4 py-2.5 text-white bg-[#15132b] border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all hover:bg-white/5 outline-none"
+            >
+              {activeDriveEmail === "all" && (
+                <option value="auto" className="bg-[#15132b] text-white font-medium">
+                  ⚡ Auto (Most Free Space)
+                </option>
+              )}
+              {accounts?.map((acc) => (
+                <option key={acc.email} value={acc.email} className="bg-[#15132b] text-white">
+                  📧 {acc.name || acc.email}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
         {/* Upload Files Box */}

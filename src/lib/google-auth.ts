@@ -87,20 +87,23 @@ export function getDriveAuthMode(): DriveAuthMode {
   return "oauth";
 }
 
-let cachedAuth: Auth.OAuth2Client | Auth.JWT | null = null;
-let cachedDrive: drive_v3.Drive | null = null;
+const cachedAuths = new Map<string, Auth.OAuth2Client | Auth.JWT>();
+const cachedDrives = new Map<string, drive_v3.Drive>();
 
 export function clearGoogleAuthCache(): void {
-  cachedAuth = null;
-  cachedDrive = null;
+  cachedAuths.clear();
+  cachedDrives.clear();
 }
 
-export function getGoogleAuth(): Auth.OAuth2Client | Auth.JWT {
-  if (cachedAuth) return cachedAuth;
+export function getGoogleAuth(driveEmail?: string): Auth.OAuth2Client | Auth.JWT {
+  const cacheKey = driveEmail || "default";
+  if (cachedAuths.has(cacheKey)) {
+    return cachedAuths.get(cacheKey)!;
+  }
 
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const refreshToken = getStoredRefreshToken();
+  const refreshToken = getStoredRefreshToken(driveEmail);
 
   if (clientId && clientSecret && refreshToken) {
     const oauth2 = new google.auth.OAuth2(
@@ -109,13 +112,13 @@ export function getGoogleAuth(): Auth.OAuth2Client | Auth.JWT {
       getOAuthRedirectUri()
     );
     oauth2.setCredentials({ refresh_token: refreshToken });
-    cachedAuth = oauth2;
+    cachedAuths.set(cacheKey, oauth2);
     return oauth2;
   }
 
   if (hasServiceAccountCredentials()) {
     const auth = getServiceAccountAuth();
-    cachedAuth = auth;
+    cachedAuths.set(cacheKey, auth);
     return auth;
   }
 
@@ -139,10 +142,14 @@ export const DRIVE_LIST_OPTS = {
   includeItemsFromAllDrives: true,
 };
 
-export function getDriveClient(): drive_v3.Drive {
-  if (cachedDrive) return cachedDrive;
-  cachedDrive = google.drive({ version: "v3", auth: getGoogleAuth() });
-  return cachedDrive;
+export function getDriveClient(driveEmail?: string): drive_v3.Drive {
+  const cacheKey = driveEmail || "default";
+  if (cachedDrives.has(cacheKey)) {
+    return cachedDrives.get(cacheKey)!;
+  }
+  const drive = google.drive({ version: "v3", auth: getGoogleAuth(driveEmail) });
+  cachedDrives.set(cacheKey, drive);
+  return drive;
 }
 
 export function formatDriveError(error: unknown): string {

@@ -3,14 +3,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { createUserFolder, listAllUserFolders } from "@/lib/google-drive";
 import { formatDriveError } from "@/lib/google-auth";
 
-export async function GET() {
+export const dynamic = "force-dynamic";
+
+export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const folders = await listAllUserFolders(userId);
+    const driveEmail =
+      request.headers.get("x-drive-email") ||
+      request.nextUrl.searchParams.get("driveEmail") ||
+      undefined;
+
+    const folders = await listAllUserFolders(userId, driveEmail);
     return NextResponse.json({ folders });
   } catch (error) {
     console.error("List folders error:", error);
@@ -25,6 +32,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const driveEmail =
+      request.headers.get("x-drive-email") ||
+      request.nextUrl.searchParams.get("driveEmail") ||
+      undefined;
+
     const body = await request.json();
     const name = body.name as string;
     const parentId = body.parentId as string | undefined;
@@ -33,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Folder name is required" }, { status: 400 });
     }
 
-    const folder = await createUserFolder(userId, name.trim(), parentId);
+    const folder = await createUserFolder(userId, name.trim(), parentId, driveEmail);
     return NextResponse.json({ folder }, { status: 201 });
   } catch (error) {
     console.error("Create folder error:", error);

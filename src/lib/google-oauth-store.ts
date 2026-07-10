@@ -7,6 +7,11 @@ export interface GoogleOAuthStore {
   refresh_token: string;
   email?: string;
   connected_at: string;
+  name?: string;
+}
+
+export interface GoogleOAuthStoreMulti {
+  accounts: GoogleOAuthStore[];
 }
 
 export function getOAuthRedirectUri(origin?: string): string {
@@ -14,49 +19,138 @@ export function getOAuthRedirectUri(origin?: string): string {
   return `${base.replace(/\/$/, "")}/api/auth/google/callback`;
 }
 
-export function getStoredRefreshToken(): string | undefined {
-  if (process.env.GOOGLE_OAUTH_REFRESH_TOKEN) {
+export function getStoredAccounts(): GoogleOAuthStore[] {
+  try {
+    if (fs.existsSync(TOKEN_FILE)) {
+      const content = fs.readFileSync(TOKEN_FILE, "utf-8").trim();
+      if (!content) return [];
+      const parsed = JSON.parse(content);
+      
+      // Support old single-account format
+      if (parsed.refresh_token) {
+        return [{
+          refresh_token: parsed.refresh_token,
+          email: parsed.email,
+          name: parsed.name,
+          connected_at: parsed.connected_at || new Date().toISOString()
+        }];
+      }
+      
+      // Support array directly
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      
+      // Support new format: { accounts: [...] }
+      if (parsed && Array.isArray(parsed.accounts)) {
+        return parsed.accounts;
+      }
+    }
+  } catch (err) {
+    console.error("Error reading stored accounts:", err);
+  }
+  return [];
+}
+
+export function getStoredRefreshToken(email?: string): string | undefined {
+  if (process.env.GOOGLE_OAUTH_REFRESH_TOKEN && !email) {
     return process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
   }
 
-  try {
-    if (fs.existsSync(TOKEN_FILE)) {
-      const data = JSON.parse(fs.readFileSync(TOKEN_FILE, "utf-8")) as GoogleOAuthStore;
-      return data.refresh_token;
-    }
-  } catch {
-    // ignore read errors
+  const accounts = getStoredAccounts();
+  if (accounts.length === 0) return undefined;
+
+  if (email && email !== "all") {
+    const acc = accounts.find(
+      (a) => a.email?.toLowerCase() === email.toLowerCase()
+    );
+    return acc?.refresh_token;
   }
 
-  return undefined;
+  return accounts[0]?.refresh_token;
 }
 
-export function getStoredOAuthInfo(): GoogleOAuthStore | null {
-  if (process.env.GOOGLE_OAUTH_REFRESH_TOKEN) {
+export function getStoredOAuthInfo(email?: string): GoogleOAuthStore | null {
+  if (process.env.GOOGLE_OAUTH_REFRESH_TOKEN && !email) {
     return {
       refresh_token: process.env.GOOGLE_OAUTH_REFRESH_TOKEN,
       connected_at: "env",
     };
   }
 
-  try {
-    if (fs.existsSync(TOKEN_FILE)) {
-      return JSON.parse(fs.readFileSync(TOKEN_FILE, "utf-8")) as GoogleOAuthStore;
-    }
-  } catch {
-    return null;
+  const accounts = getStoredAccounts();
+  if (accounts.length === 0) return null;
+
+  if (email && email !== "all") {
+    const acc = accounts.find(
+      (a) => a.email?.toLowerCase() === email.toLowerCase()
+    );
+    return acc || null;
   }
 
-  return null;
+  return accounts[0] || null;
 }
 
 export function saveRefreshToken(refreshToken: string, email?: string): void {
-  const data: GoogleOAuthStore = {
+  const accounts = getStoredAccounts();
+  const existingIndex = accounts.findIndex(
+    (acc) =>
+      email &&
+      acc.email &&
+      acc.email.toLowerCase() === email.toLowerCase()
+  );
+
+  const existingAccount = existingIndex >= 0 ? accounts[existingIndex] : null;
+
+  const newAccount: GoogleOAuthStore = {
     refresh_token: refreshToken,
     email,
-    connected_at: new Date().toISOString(),
+    name: existingAccount?.name || undefined,
+    connected_at: existingAccount?.connected_at || new Date().toISOString(),
   };
+
+  if (existingIndex >= 0) {
+    accounts[existingIndex] = newAccount;
+  } else {
+    accounts.push(newAccount);
+  }
+
+  const data: GoogleOAuthStoreMulti = { accounts };
   fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+}
+
+export function updateStoredAccountName(email: string, name: string): boolean {
+  const accounts = getStoredAccounts();
+  const existing = accounts.find(
+    (acc) =>
+      email &&
+      acc.email &&
+      acc.email.toLowerCase() === email.toLowerCase()
+  );
+
+  if (existing) {
+    existing.name = name;
+    const data: GoogleOAuthStoreMulti = { accounts };
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+    return true;
+  }
+  return false;
+}
+
+export function deleteStoredAccount(email: string): boolean {
+  const accounts = getStoredAccounts();
+  const initialLength = accounts.length;
+  const filtered = accounts.filter(
+    (acc) => !acc.email || acc.email.toLowerCase() !== email.toLowerCase()
+  );
+
+  if (filtered.length === initialLength) {
+    return false;
+  }
+
+  const data: GoogleOAuthStoreMulti = { accounts: filtered };
+  fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+  return true;
 }
 
 export function isOAuthConfigured(): boolean {

@@ -23,6 +23,7 @@ export interface DriveFolder {
   deletedAt?: string;
   isFolder: true;
   fileCount?: number;
+  driveEmail?: string;
 }
 
 export interface DriveFile {
@@ -38,6 +39,7 @@ export interface DriveFile {
   category: FileCategory;
   parentId?: string;
   isFolder?: false;
+  driveEmail?: string;
 }
 
 export type DriveItem = DriveFile | DriveFolder;

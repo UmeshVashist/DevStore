@@ -18,13 +18,25 @@ function formatBytes(bytesStr: string | undefined): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
-export function Header() {
+export function Header({
+  activeDrive = "all",
+  onActiveDriveChange,
+  accounts = [],
+}: {
+  activeDrive?: string;
+  onActiveDriveChange?: (email: string) => void;
+  accounts?: Array<{ email: string; connectedAt: string }>;
+}) {
   const [quota, setQuota] = useState<{ limit?: string; usage?: string } | null>(null);
 
   useEffect(() => {
     async function fetchQuota() {
       try {
-        const res = await fetch("/api/storage");
+        const url =
+          activeDrive && activeDrive !== "all"
+            ? `/api/storage?driveEmail=${encodeURIComponent(activeDrive)}`
+            : "/api/storage?driveEmail=all";
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
           setQuota(data.quota);
@@ -34,7 +46,7 @@ export function Header() {
       }
     }
     fetchQuota();
-  }, []);
+  }, [activeDrive]);
 
   const usageVal = quota?.usage ? parseInt(quota.usage, 10) : 0;
   const limitVal = quota?.limit ? parseInt(quota.limit, 10) : 0;
@@ -47,13 +59,13 @@ export function Header() {
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="glass rounded-2xl px-6 py-4 flex items-center justify-between mb-8"
+      className="glass rounded-2xl px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 mb-8"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 w-full md:w-auto">
         <motion.div
           animate={{ rotate: [0, 5, -5, 0] }}
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-          className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg"
+          className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shrink-0"
         >
           <Database className="w-5 h-5 text-white" />
         </motion.div>
@@ -66,7 +78,7 @@ export function Header() {
       </div>
 
       {quota && (
-        <div className="hidden md:flex flex-col items-center gap-1.5 max-w-xs w-full px-4">
+        <div className="flex flex-col items-center gap-1.5 max-w-xs w-full px-4">
           <div className="flex justify-between w-full text-[11px] text-white/70">
             <span>Used: <span className="font-semibold text-white">{usedText}</span> of <span className="font-semibold text-white">{limitText}</span></span>
             <span>{limitVal > 0 ? `${percentage}%` : ""}</span>
@@ -82,15 +94,31 @@ export function Header() {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
-        <ThemeToggle />
-        <UserButton
-          appearance={{
-            elements: {
-              avatarBox: "w-10 h-10 ring-2 ring-white/20",
-            },
-          }}
-        />
+      <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
+        {accounts.length > 0 && (
+          <select
+            value={activeDrive}
+            onChange={(e) => onActiveDriveChange?.(e.target.value)}
+            className="bg-white/10 text-white border border-white/10 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all hover:bg-white/15 outline-none max-w-[180px] truncate"
+          >
+            <option value="all" className="bg-slate-900 text-white font-medium">🌐 All Drives</option>
+            {accounts.map((acc) => (
+              <option key={acc.email} value={acc.email} className="bg-slate-900 text-white">
+                📧 {acc.email}
+              </option>
+            ))}
+          </select>
+        )}
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: "w-10 h-10 ring-2 ring-white/20",
+              },
+            }}
+          />
+        </div>
       </div>
     </motion.header>
   );

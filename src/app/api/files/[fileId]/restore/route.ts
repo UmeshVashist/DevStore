@@ -6,16 +6,21 @@ import { FOLDER_MIME } from "@/lib/file-types";
 
 type RouteParams = { params: Promise<{ fileId: string }> };
 
-export async function POST(_request: NextRequest, { params }: RouteParams) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const driveEmail =
+      request.headers.get("x-drive-email") ||
+      request.nextUrl.searchParams.get("driveEmail") ||
+      undefined;
+
     const { fileId } = await params;
 
-    const drive = getDriveClient();
+    const drive = getDriveClient(driveEmail);
     let isFolder = false;
     try {
       const meta = await drive.files.get({ ...DRIVE_OPTS, fileId, fields: "mimeType" });
@@ -25,18 +30,18 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     }
 
     if (isFolder) {
-      const owns = await verifyUserOwnsFile(userId, fileId);
+      const owns = await verifyUserOwnsFile(userId, fileId, driveEmail);
       if (!owns) return NextResponse.json({ error: "Not found" }, { status: 404 });
-      const folder = await restoreFolder(userId, fileId);
+      const folder = await restoreFolder(userId, fileId, driveEmail);
       return NextResponse.json({ folder });
     }
 
-    const owns = await verifyUserOwnsFile(userId, fileId);
+    const owns = await verifyUserOwnsFile(userId, fileId, driveEmail);
     if (!owns) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    const file = await restoreFile(userId, fileId);
+    const file = await restoreFile(userId, fileId, driveEmail);
 
     return NextResponse.json({ file });
   } catch (error) {

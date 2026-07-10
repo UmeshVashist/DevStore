@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { AlertCircle, CheckCircle2, Loader2, Copy, Check } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Copy, Check, Edit3 } from "lucide-react";
 
 export function GoogleDriveBanner() {
   const [status, setStatus] = useState<{
@@ -38,13 +38,16 @@ export function GoogleDriveBanner() {
     >
       <AlertCircle className="w-6 h-6 text-amber-400 shrink-0" />
       <div className="flex-1">
-        <p className="text-white font-medium">Pls Gmail connect (Only 1 time)</p>
-        <p className="text-white/60 text-sm mt-0.5">
-          Personal Gmail par upload ke liye apna account connect karna zaroori hai. Ek baar ke baad auto chalega.
+        <h4 className="text-white font-medium">Google Drive Not Connected</h4>
+        <p className="text-white/60 text-xs mt-0.5">
+          OAuth authentication mode active hai. Files access aur upload karne ke liye apna Google Account connect karein.
         </p>
       </div>
-      <Link href="/setup/drive" className="btn-primary whitespace-nowrap text-sm px-4 py-2">
-        Connect Drive
+      <Link
+        href="/setup/drive"
+        className="text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-[#0f0c1b] px-3.5 py-1.5 rounded-lg transition-colors whitespace-nowrap self-end sm:self-center"
+      >
+        Connect Now
       </Link>
     </motion.div>
   );
@@ -60,12 +63,17 @@ function SetupContent() {
     hasClientCredentials: boolean;
     authMode?: "oauth" | "service_account";
     email?: string;
+    accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
     loading: boolean;
   }>({ connected: false, hasClientCredentials: false, loading: true });
 
   const [redirectUri, setRedirectUri] = useState("");
   const [copied, setCopied] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
+
+  // States for renaming account alias
+  const [selectedRenameAccount, setSelectedRenameAccount] = useState<{ email: string; name?: string } | null>(null);
+  const [newAccountAlias, setNewAccountAlias] = useState("");
 
   useEffect(() => {
     setRedirectUri(`${window.location.origin}/api/auth/google/callback`);
@@ -80,6 +88,7 @@ function SetupContent() {
           hasClientCredentials: data.hasClientCredentials,
           authMode: data.authMode,
           email: data.email,
+          accounts: data.accounts,
           loading: false,
         })
       )
@@ -110,7 +119,7 @@ function SetupContent() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8 flex items-center justify-center">
+    <div className="min-h-screen p-4 md:p-8 flex items-center justify-center relative">
       <div className="w-full max-w-lg">
         <div className="glass rounded-2xl p-8">
           <h1 className="text-2xl font-bold text-white mb-2">Connect Google Drive</h1>
@@ -121,7 +130,7 @@ function SetupContent() {
           {success && status.connected && (
             <div className="flex items-center gap-2 p-3 rounded-xl bg-green-500/20 text-green-300 mb-4 text-sm">
               <CheckCircle2 className="w-5 h-5 shrink-0" />
-              Connected{status.email ? ` as ${status.email}` : ""}! Ab upload kar sakte hain.
+              Connected successfully! Ab upload kar sakte hain.
             </div>
           )}
 
@@ -142,7 +151,7 @@ function SetupContent() {
                       <p>Hum token ko server ki disk par save nahi kar sakte kyunki Vercel read-only hai.</p>
                       <p>Apne Google account ko connect rakhne ke liye neeche diye gaye Refresh Token ko copy karein aur use apne Vercel Project ke dashboard par environment variable <strong>GOOGLE_OAUTH_REFRESH_TOKEN</strong> ke roop mein add karein:</p>
                       <div className="flex items-center gap-2 bg-black/45 rounded-lg p-2 mt-1">
-                        <code className="text-amber-200 text-xs flex-1 break-all select-all">{searchParams.get("token")}</code>
+                         <code className="text-amber-200 text-xs flex-1 break-all select-all">{searchParams.get("token")}</code>
                         <button
                           onClick={copyToken}
                           className="p-1.5 rounded hover:bg-white/10 shrink-0"
@@ -168,20 +177,82 @@ function SetupContent() {
 
           {status.connected && status.authMode === "oauth" ? (
             <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                <p className="text-green-400 font-medium flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5" /> Drive Connected
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-4">
+                <p className="text-green-400 font-medium flex items-center gap-2 border-b border-white/10 pb-2">
+                  <CheckCircle2 className="w-5 h-5" /> Connected Accounts
                 </p>
-                {status.email && <p className="text-white/60 text-sm mt-1">{status.email}</p>}
+                {status.accounts && status.accounts.length > 0 ? (
+                  <div className="space-y-3">
+                    {status.accounts.map((acc) => (
+                      <div key={acc.email} className="flex items-center justify-between gap-2 p-3 rounded-lg bg-white/5 border border-white/5">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white text-sm font-semibold truncate">
+                              {acc.name || acc.email}
+                            </span>
+                            {acc.name && acc.name !== acc.email && (
+                              <span className="text-white/40 text-[10px] truncate">
+                                ({acc.email})
+                              </span>
+                            )}
+                          </div>
+                          {acc.connectedAt && acc.connectedAt !== "env" && (
+                            <p className="text-white/40 text-[10px] mt-0.5">
+                              Connected: {new Date(acc.connectedAt).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedRenameAccount(acc);
+                              setNewAccountAlias(acc.name || acc.email);
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                            title="Edit Alias"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm(`Disconnect ${acc.email}?`)) {
+                                try {
+                                  const res = await fetch("/api/drive/disconnect", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ email: acc.email }),
+                                  });
+                                  if (res.ok) {
+                                    window.location.reload();
+                                  } else {
+                                    const data = await res.json();
+                                    alert(data.error || "Failed to disconnect");
+                                  }
+                                } catch {
+                                  alert("Failed to disconnect");
+                                }
+                              }
+                            }}
+                            className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 px-2.5 py-1.5 rounded-lg transition-all border border-red-500/20 font-medium"
+                          >
+                            Disconnect
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  status.email && <p className="text-white/60 text-sm">{status.email}</p>
+                )}
               </div>
               <Link href="/" className="btn-primary block text-center">
                 Dashboard par jayein
               </Link>
               <a
                 href="/api/auth/google"
-                className="btn-ghost block text-center text-white/70 py-2"
+                className="btn-ghost block text-center text-white/70 py-2 border border-white/10 rounded-xl bg-white/5 hover:bg-white/10 transition-all"
               >
-                Connect Different Account
+                + Connect Another Account
               </a>
             </div>
           ) : (
@@ -257,6 +328,64 @@ function SetupContent() {
           )}
         </div>
       </div>
+
+      {/* Rename Drive Dialog Popup */}
+      {selectedRenameAccount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#15132b] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative"
+          >
+            <h3 className="text-white font-bold text-lg mb-2">Rename Drive Connection</h3>
+            <p className="text-white/50 text-xs mb-4">
+              Set a custom name/alias for <strong>{selectedRenameAccount.email}</strong> to identify it easily.
+            </p>
+            <input
+              type="text"
+              value={newAccountAlias}
+              onChange={(e) => setNewAccountAlias(e.target.value)}
+              placeholder="e.g. Work Drive, Personal Drive"
+              className="glass-input w-full px-4 py-2.5 text-white mb-4 outline-none focus:ring-2 focus:ring-indigo-500 bg-black/20"
+              autoFocus
+            />
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setSelectedRenameAccount(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-all border border-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/drive/rename", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        email: selectedRenameAccount.email,
+                        name: newAccountAlias.trim(),
+                      }),
+                    });
+                    if (res.ok) {
+                      setSelectedRenameAccount(null);
+                      window.location.reload();
+                    } else {
+                      const data = await res.json();
+                      alert(data.error || "Failed to rename");
+                    }
+                  } catch {
+                    alert("Failed to rename");
+                  }
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-md shadow-indigo-600/30"
+              >
+                Save Alias
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

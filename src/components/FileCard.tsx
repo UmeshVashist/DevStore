@@ -34,6 +34,8 @@ interface FileCardProps {
   selected?: boolean;
   onSelectToggle?: () => void;
   anySelected?: boolean;
+  accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
+  showDriveBadge?: boolean;
 }
 
 export function FileCard({
@@ -52,11 +54,19 @@ export function FileCard({
   selected = false,
   onSelectToggle,
   anySelected = false,
+  accounts = [],
+  showDriveBadge = false,
 }: FileCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const daysLeft = file.deletedAt
     ? daysUntilPermanentDelete(file.deletedAt, RETENTION_DAYS)
     : null;
+
+  const driveAccount = accounts?.find(a => a.email === file.driveEmail);
+  const rawDisplayName = driveAccount?.name || file.driveEmail || "";
+  const driveDisplayName = rawDisplayName.includes("@")
+    ? rawDisplayName.split("@")[0]
+    : rawDisplayName;
 
   return (
     <motion.div
@@ -101,7 +111,7 @@ export function FileCard({
       )}
       <div className="flex items-start gap-3">
         <FileIcon category={file.category} size="md" />
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 text-left">
           <h3 className="text-white font-medium truncate" title={file.name}>
             {file.name}
           </h3>
@@ -109,7 +119,14 @@ export function FileCard({
             {formatBytes(file.size)}
             {file.name.includes(".") ? ` • ${file.name.split(".").pop()?.toUpperCase()}` : ""}
           </p>
-          <p className="text-white/40 text-xs">{formatDate(file.modifiedAt)}</p>
+          <p className="text-white/40 text-xs mt-0.5">{formatDate(file.modifiedAt)}</p>
+          {showDriveBadge && file.driveEmail && (
+            <div className="flex justify-end mt-1.5">
+              <span className="text-[10px] text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20 truncate max-w-[120px] font-medium animate-fade-in" title={file.driveEmail}>
+                ☁️ {driveDisplayName}
+              </span>
+            </div>
+          )}
           {isTrash && daysLeft !== null && (
             <p className="text-amber-400/80 text-xs mt-1 flex items-center gap-1">
               <Clock className="w-3 h-3" />
@@ -198,7 +215,7 @@ function ActionButton({
         danger ? "text-red-400" : "text-white/80"
       }`}
     >
-      <Icon className="w-4 h-4" />
+      <Icon className="w-4 h-4 shrink-0" />
       {label}
     </button>
   );

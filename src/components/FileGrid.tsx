@@ -23,6 +23,8 @@ interface FileGridProps {
   emptyMessage?: string;
   selectedIds?: Set<string>;
   onSelectToggle?: (item: DriveItem) => void;
+  accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
+  showDriveBadge?: boolean;
 }
 
 export function FileGrid({
@@ -41,6 +43,8 @@ export function FileGrid({
   emptyMessage = "No files yet. Upload your first file!",
   selectedIds,
   onSelectToggle,
+  accounts = [],
+  showDriveBadge = false,
 }: FileGridProps) {
   const [search, setSearch] = useState("");
 
@@ -105,6 +109,8 @@ export function FileGrid({
                 selected={selectedIds?.has(item.id)}
                 onSelectToggle={onSelectToggle ? () => onSelectToggle(item) : undefined}
                 anySelected={anySelected}
+                accounts={accounts}
+                showDriveBadge={showDriveBadge}
               />
             ) : (
               <FileCard
@@ -124,6 +130,8 @@ export function FileGrid({
                 selected={selectedIds?.has(item.id)}
                 onSelectToggle={onSelectToggle ? () => onSelectToggle(item) : undefined}
                 anySelected={anySelected}
+                accounts={accounts}
+                showDriveBadge={showDriveBadge}
               />
             )
           )}

@@ -17,9 +17,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await purgeExpiredTrash(userId);
+    const driveEmail =
+      request.headers.get("x-drive-email") ||
+      request.nextUrl.searchParams.get("driveEmail") ||
+      undefined;
+
+    await purgeExpiredTrash(userId, driveEmail);
     const folderId = request.nextUrl.searchParams.get("folderId") || undefined;
-    const items = await listBrowseItems(userId, folderId);
+    const items = await listBrowseItems(userId, folderId, driveEmail);
 
     return NextResponse.json({ items });
   } catch (error) {
@@ -78,6 +83,11 @@ export async function POST(request: NextRequest) {
 
     const targetFolderId = folderId && folderId !== "root" ? folderId : undefined;
 
+    const driveEmail =
+      request.headers.get("x-drive-email") ||
+      request.nextUrl.searchParams.get("driveEmail") ||
+      undefined;
+
     let uploaded;
     if (relativePath) {
       uploaded = await uploadFileWithRelativePath(
@@ -85,10 +95,11 @@ export async function POST(request: NextRequest) {
         relativePath,
         mimeType,
         bodyStream,
-        targetFolderId
+        targetFolderId,
+        driveEmail
       );
     } else {
-      uploaded = await uploadFile(userId, filename, mimeType, bodyStream, targetFolderId);
+      uploaded = await uploadFile(userId, filename, mimeType, bodyStream, targetFolderId, driveEmail);
     }
 
     return NextResponse.json({ file: uploaded }, { status: 201 });

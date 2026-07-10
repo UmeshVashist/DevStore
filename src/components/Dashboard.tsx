@@ -24,7 +24,7 @@ export function Dashboard() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [activeTab, setActiveTab] = useState<DashboardTab>("files");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string }[]>([]);
+  const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string; driveEmail?: string }[]>([]);
   const [previewFile, setPreviewFile] = useState<DriveFile | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [clipboard, setClipboard] = useState<{
@@ -34,6 +34,16 @@ export function Dashboard() {
   const [hoveredItem, setHoveredItem] = useState<DriveItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [renamingItem, setRenamingItem] = useState<DriveItem | null>(null);
+
+  // Multiple Google Drives support states
+  const [accounts, setAccounts] = useState<Array<{ email: string; connectedAt: string }>>([]);
+  const [activeDriveEmail, setActiveDriveEmail] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("devdata_active_drive") || "all";
+    }
+    return "all";
+  });
+  const [currentFolderDriveEmail, setCurrentFolderDriveEmail] = useState<string | undefined>(undefined);
 
   const handleSelectToggle = useCallback((item: DriveItem) => {
     setSelectedIds((prev) => {
@@ -70,17 +80,53 @@ export function Dashboard() {
     setTimeout(() => setToast(null), type === "error" ? 8000 : 4000);
   };
 
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/drive/status");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.accounts) {
+          setAccounts(data.accounts);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching status", err);
+    }
+  }, []);
+
+  const handleActiveDriveChange = useCallback((email: string) => {
+    setActiveDriveEmail(email);
+    localStorage.setItem("devdata_active_drive", email);
+    setSelectedIds(new Set());
+    // Also reset folder navigation if we change active drive to avoid mixups
+    setCurrentFolderId(null);
+    setCurrentFolderDriveEmail(undefined);
+    setBreadcrumb([]);
+  }, []);
+
   const fetchFolders = useCallback(async () => {
-    const res = await fetch("/api/folders");
+    let url = "/api/folders";
+    if (activeDriveEmail) {
+      url += `?driveEmail=${encodeURIComponent(activeDriveEmail)}`;
+    }
+    const res = await fetch(url, {
+      headers: activeDriveEmail ? { "x-drive-email": activeDriveEmail } : {},
+    });
     if (res.ok) {
       const data = await res.json();
       setAllFolders(data.folders || []);
     }
-  }, []);
+  }, [activeDriveEmail]);
 
-  const fetchItems = useCallback(async (folderId?: string | null) => {
-    const url = folderId ? `/api/files?folderId=${folderId}` : "/api/files";
-    const res = await fetch(url);
+  const fetchItems = useCallback(async (folderId?: string | null, driveEmail?: string) => {
+    const targetEmail = driveEmail || activeDriveEmail;
+    let url = folderId ? `/api/files?folderId=${folderId}` : "/api/files";
+    if (targetEmail) {
+      url += (url.includes("?") ? "&" : "?") + `driveEmail=${encodeURIComponent(targetEmail)}`;
+    }
+    const res = await fetch(url, {
+      headers: targetEmail ? { "x-drive-email": targetEmail } : {},
+    });
     if (res.ok) {
       const data = await res.json();
       setItems(data.items || []);
@@ -88,30 +134,37 @@ export function Dashboard() {
       const data = await res.json().catch(() => ({}));
       showToast("error", data.error || "Failed to load files");
     }
-  }, []);
+  }, [activeDriveEmail]);
 
   const fetchTrash = useCallback(async () => {
-    const res = await fetch("/api/trash");
+    let url = "/api/trash";
+    if (activeDriveEmail) {
+      url += `?driveEmail=${encodeURIComponent(activeDriveEmail)}`;
+    }
+    const res = await fetch(url, {
+      headers: activeDriveEmail ? { "x-drive-email": activeDriveEmail } : {},
+    });
     if (res.ok) {
       const data = await res.json();
       setTrashItems(data.items || data.files || []);
     }
-  }, []);
+  }, [activeDriveEmail]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
       await Promise.all([
-        fetchItems(currentFolderId),
+        fetchItems(currentFolderId, currentFolderDriveEmail),
         fetchFolders(),
         fetchTrash(),
+        fetchStatus(),
       ]);
     } catch {
       showToast("error", "Server not ready. Wait a moment and refresh the page.");
     } finally {
       setLoading(false);
     }
-  }, [currentFolderId, fetchItems, fetchFolders, fetchTrash]);
+  }, [currentFolderId, currentFolderDriveEmail, fetchItems, fetchFolders, fetchTrash, fetchStatus]);
 
   useEffect(() => {
     fetchAll();
@@ -120,7 +173,8 @@ export function Dashboard() {
   const uploadFiles = async (
     fileList: FileList | File[],
     folderId: string,
-    withRelativePath = false
+    withRelativePath = false,
+    uploadTargetEmail?: string
   ) => {
     setUploading(withRelativePath ? "folder" : "files");
     setUploadProgress(0);
@@ -158,6 +212,8 @@ export function Dashboard() {
     const totalBytes = allowedFiles.reduce((acc, f) => acc + f.size, 0);
     let completedBytes = 0;
 
+    const targetEmail = currentFolderDriveEmail || uploadTargetEmail || activeDriveEmail;
+
     try {
       if (withRelativePath) {
         const folderPaths = new Set<string>();
@@ -190,7 +246,10 @@ export function Dashboard() {
 
           const res = await fetch("/api/folders/ensure", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "x-drive-email": targetEmail || ""
+            },
             body: JSON.stringify({
               relativePath: lastPart,
               baseFolderId: parentFolderId,
@@ -236,7 +295,10 @@ export function Dashboard() {
               // 1. Get upload session URL from our server
               const sessionRes = await fetch("/api/files/upload-session", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                  "Content-Type": "application/json",
+                  "x-drive-email": targetEmail || ""
+                },
                 body: JSON.stringify({
                   filename: file.name,
                   mimeType: file.type || "application/octet-stream",
@@ -291,7 +353,9 @@ export function Dashboard() {
                     }
 
                     // 3. Fetch full metadata from our server for the dashboard
-                    const metaRes = await fetch(`/api/files/${fileId}?meta=true`);
+                    const metaRes = await fetch(`/api/files/${fileId}?meta=true`, {
+                      headers: { "x-drive-email": targetEmail || "" }
+                    });
                     if (metaRes.ok) {
                       const metaData = await metaRes.json();
                       resolve({ success: true, file: metaData.file });
@@ -387,16 +451,20 @@ export function Dashboard() {
     }
   };
 
-  const handleUpload = (files: FileList | File[], folderId: string) =>
-    uploadFiles(files, folderId, false);
+  const handleUpload = (files: FileList | File[], folderId: string, driveEmail?: string) =>
+    uploadFiles(files, folderId, false, driveEmail);
 
-  const handleUploadFolder = (files: FileList | File[], folderId: string) =>
-    uploadFiles(files, folderId, true);
+  const handleUploadFolder = (files: FileList | File[], folderId: string, driveEmail?: string) =>
+    uploadFiles(files, folderId, true, driveEmail);
 
   const handleCreateFolder = async (name: string, parentId?: string) => {
+    const targetEmail = currentFolderDriveEmail || activeDriveEmail;
     const res = await fetch("/api/folders", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "x-drive-email": targetEmail || ""
+      },
       body: JSON.stringify({
         name,
         parentId: parentId !== undefined ? parentId : (currentFolderId || undefined),
@@ -456,7 +524,10 @@ export function Dashboard() {
         try {
           const res = await fetch("/api/files/paste", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "x-drive-email": item.driveEmail || ""
+            },
             body: JSON.stringify({
               action: clipboard.type,
               itemId: item.id,
@@ -524,7 +595,7 @@ export function Dashboard() {
 
   const handleDownload = (file: DriveFile) => {
     const link = document.createElement("a");
-    link.href = `/api/files/${file.id}`;
+    link.href = `/api/files/${file.id}?driveEmail=${encodeURIComponent(file.driveEmail || "")}`;
     link.download = file.name;
     document.body.appendChild(link);
     link.click();
@@ -541,7 +612,7 @@ export function Dashboard() {
     files.forEach((file, index) => {
       setTimeout(() => {
         const link = document.createElement("a");
-        link.href = `/api/files/${file.id}`;
+        link.href = `/api/files/${file.id}?driveEmail=${encodeURIComponent(file.driveEmail || "")}`;
         link.download = file.name;
         document.body.appendChild(link);
         link.click();
@@ -567,7 +638,10 @@ export function Dashboard() {
     await Promise.all(
       selectedItems.map(async (item) => {
         try {
-          const res = await fetch(`/api/files/${item.id}`, { method: "DELETE" });
+          const res = await fetch(`/api/files/${item.id}`, { 
+            method: "DELETE",
+            headers: { "x-drive-email": item.driveEmail || "" }
+          });
           if (res.ok) {
             successCount++;
           }
@@ -594,7 +668,10 @@ export function Dashboard() {
     await Promise.all(
       selectedItems.map(async (item) => {
         try {
-          const res = await fetch(`/api/files/${item.id}/restore`, { method: "POST" });
+          const res = await fetch(`/api/files/${item.id}/restore`, { 
+            method: "POST",
+            headers: { "x-drive-email": item.driveEmail || "" }
+          });
           if (res.ok) {
             successCount++;
           }
@@ -624,7 +701,10 @@ export function Dashboard() {
     if (!confirm(message)) return;
 
     try {
-      const res = await fetch(`/api/files/${item.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/files/${item.id}`, { 
+        method: "DELETE",
+        headers: { "x-drive-email": item.driveEmail || "" }
+      });
       if (res.ok) {
         showToast("success", isTrash ? "Permanently deleted" : "Moved to trash");
         await fetchAll();
@@ -638,7 +718,10 @@ export function Dashboard() {
 
   const handleRestore = async (item: DriveItem) => {
     try {
-      const res = await fetch(`/api/files/${item.id}/restore`, { method: "POST" });
+      const res = await fetch(`/api/files/${item.id}/restore`, { 
+        method: "POST",
+        headers: { "x-drive-email": item.driveEmail || "" }
+      });
       if (res.ok) {
         showToast("success", `"${item.name}" restored successfully`);
         await fetchAll();
@@ -655,7 +738,10 @@ export function Dashboard() {
     try {
       const res = await fetch(`/api/files/${item.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-drive-email": item.driveEmail || ""
+        },
         body: JSON.stringify({ name: newName }),
       });
 
@@ -678,7 +764,7 @@ export function Dashboard() {
     if (ext === "html" || ext === "htm" || ext === "url") {
       if (ext === "url") {
         try {
-          const res = await fetch(`/api/files/${file.id}`);
+          const res = await fetch(`/api/files/${file.id}?driveEmail=${encodeURIComponent(file.driveEmail || "")}`);
           if (res.ok) {
             const text = await res.text();
             const match = text.match(/URL=(.+)/i);
@@ -690,9 +776,9 @@ export function Dashboard() {
         } catch (err) {
           console.error("Failed to parse URL file:", err);
         }
-        window.open(`/api/files/${file.id}?preview=true`, "_blank");
+        window.open(`/api/files/${file.id}?preview=true&driveEmail=${encodeURIComponent(file.driveEmail || "")}`, "_blank");
       } else {
-        window.open(`/api/files/${file.id}?preview=true`, "_blank");
+        window.open(`/api/files/${file.id}?preview=true&driveEmail=${encodeURIComponent(file.driveEmail || "")}`, "_blank");
       }
     } else {
       setPreviewFile(file);
@@ -701,7 +787,8 @@ export function Dashboard() {
 
   const handleOpenFolder = (folder: DriveFolder) => {
     setCurrentFolderId(folder.id);
-    setBreadcrumb((prev) => [...prev, { id: folder.id, name: folder.name }]);
+    setCurrentFolderDriveEmail(folder.driveEmail);
+    setBreadcrumb((prev) => [...prev, { id: folder.id, name: folder.name, driveEmail: folder.driveEmail }]);
     setActiveTab("files");
     setSelectedIds(new Set());
   };
@@ -711,9 +798,15 @@ export function Dashboard() {
     setSelectedIds(new Set());
     if (!folderId) {
       setBreadcrumb([]);
+      setCurrentFolderDriveEmail(undefined);
     } else {
       const idx = breadcrumb.findIndex((b) => b.id === folderId);
-      setBreadcrumb(idx >= 0 ? breadcrumb.slice(0, idx + 1) : breadcrumb);
+      if (idx >= 0) {
+        setCurrentFolderDriveEmail(breadcrumb[idx].driveEmail);
+        setBreadcrumb(breadcrumb.slice(0, idx + 1));
+      } else {
+        setBreadcrumb(breadcrumb);
+      }
     }
   };
 
@@ -727,7 +820,11 @@ export function Dashboard() {
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <Header />
+        <Header
+          activeDrive={activeDriveEmail}
+          onActiveDriveChange={handleActiveDriveChange}
+          accounts={accounts}
+        />
 
         <GoogleDriveBanner />
 
@@ -740,6 +837,8 @@ export function Dashboard() {
               uploadingType={uploading}
               uploadProgress={uploadProgress}
               defaultFolderId={currentFolderId}
+              accounts={accounts}
+              activeDriveEmail={activeDriveEmail}
             />
           </div>
         )}
@@ -787,6 +886,8 @@ export function Dashboard() {
                 ? "This folder is empty."
                 : "No files yet. Upload your first file or create a folder!"
             }
+            accounts={accounts}
+            showDriveBadge={activeDriveEmail === "all"}
           />
         ) : activeTab === "folders" ? (
           <FileGrid
@@ -805,6 +906,8 @@ export function Dashboard() {
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
             emptyMessage="No folders yet. Create your first folder above!"
+            accounts={accounts}
+            showDriveBadge={activeDriveEmail === "all"}
           />
         ) : (
           <FileGrid
@@ -818,6 +921,8 @@ export function Dashboard() {
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
             emptyMessage="Trash is empty. Deleted files appear here for 30 days."
+            accounts={accounts}
+            showDriveBadge={activeDriveEmail === "all"}
           />
         )}
 
@@ -882,7 +987,6 @@ export function Dashboard() {
                       <RotateCcw className="w-5 h-5" />
                       <span className="text-[10px] font-medium">Restore</span>
                     </button>
-
                     <button
                       onClick={() => handleMultiDelete(selectedItems)}
                       className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all flex flex-col items-center gap-0.5"
@@ -906,7 +1010,6 @@ export function Dashboard() {
                         <span className="text-[10px] font-medium">Download</span>
                       </button>
                     )}
-
                     <button
                       onClick={() => handleMultiCopy(selectedItems)}
                       className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-all flex flex-col items-center gap-0.5"
@@ -915,7 +1018,6 @@ export function Dashboard() {
                       <Copy className="w-5 h-5" />
                       <span className="text-[10px] font-medium">Copy</span>
                     </button>
-
                     <button
                       onClick={() => handleMultiCut(selectedItems)}
                       className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-all flex flex-col items-center gap-0.5"
@@ -924,7 +1026,6 @@ export function Dashboard() {
                       <Scissors className="w-5 h-5" />
                       <span className="text-[10px] font-medium">Cut</span>
                     </button>
-
                     <button
                       onClick={() => handleMultiDelete(selectedItems)}
                       className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all flex flex-col items-center gap-0.5"

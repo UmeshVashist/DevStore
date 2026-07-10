@@ -22,6 +22,8 @@ interface FolderCardProps {
   selected?: boolean;
   onSelectToggle?: () => void;
   anySelected?: boolean;
+  accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
+  showDriveBadge?: boolean;
 }
 
 export function FolderCard({
@@ -39,11 +41,19 @@ export function FolderCard({
   selected = false,
   onSelectToggle,
   anySelected = false,
+  accounts = [],
+  showDriveBadge = false,
 }: FolderCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const daysLeft = folder.deletedAt
     ? daysUntilPermanentDelete(folder.deletedAt, RETENTION_DAYS)
     : null;
+
+  const driveAccount = accounts?.find(a => a.email === folder.driveEmail);
+  const rawDisplayName = driveAccount?.name || folder.driveEmail || "";
+  const driveDisplayName = rawDisplayName.includes("@")
+    ? rawDisplayName.split("@")[0]
+    : rawDisplayName;
 
   return (
     <motion.div
@@ -186,7 +196,7 @@ export function FolderCard({
         </div>
       </div>
       {!anySelected && (
-        <div className="flex gap-2 mt-3 pt-3 border-t border-white/10">
+        <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-white/10">
           {isTrash && onRestore ? (
             <button
               onClick={(e) => {
@@ -203,6 +213,11 @@ export function FolderCard({
               <Folder className="w-3.5 h-3.5" />
               Click to open
             </div>
+          )}
+          {showDriveBadge && folder.driveEmail && (
+            <span className="text-[10px] text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20 truncate max-w-[120px] shrink-0 font-medium" title={folder.driveEmail}>
+              ☁️ {driveDisplayName}
+            </span>
           )}
         </div>
       )}

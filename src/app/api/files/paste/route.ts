@@ -9,6 +9,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const driveEmail =
+      request.headers.get("x-drive-email") ||
+      request.nextUrl.searchParams.get("driveEmail") ||
+      undefined;
+
     const body = await request.json();
     const { action, itemId, itemType, targetFolderId } = body as {
       action: "copy" | "cut";
@@ -28,14 +33,14 @@ export async function POST(request: NextRequest) {
 
     if (action === "cut") {
       // Move item
-      await moveItem(userId, itemId, cleanTargetId);
+      await moveItem(userId, itemId, cleanTargetId, driveEmail);
       return NextResponse.json({ success: true, message: "Item moved successfully" });
     } else if (action === "copy") {
       // Copy item
       if (itemType === "folder") {
-        await copyFolder(userId, itemId, cleanTargetId);
+        await copyFolder(userId, itemId, cleanTargetId, driveEmail);
       } else {
-        await copyFile(userId, itemId, cleanTargetId);
+        await copyFile(userId, itemId, cleanTargetId, driveEmail);
       }
       return NextResponse.json({ success: true, message: "Item copied successfully" });
     }

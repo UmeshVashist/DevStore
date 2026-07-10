@@ -14,6 +14,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const driveEmail =
+      request.headers.get("x-drive-email") ||
+      request.nextUrl.searchParams.get("driveEmail") ||
+      undefined;
+
     const body = await request.json().catch(() => ({}));
     const { filename, mimeType, size, folderId, relativePath } = body;
 
@@ -63,7 +68,8 @@ export async function POST(request: NextRequest) {
         mimeType,
         size,
         targetFolderId,
-        origin || undefined
+        origin || undefined,
+        driveEmail
       );
     } else {
       session = await createUploadSession(
@@ -72,7 +78,8 @@ export async function POST(request: NextRequest) {
         mimeType,
         size,
         targetFolderId,
-        origin || undefined
+        origin || undefined,
+        driveEmail
       );
     }
 

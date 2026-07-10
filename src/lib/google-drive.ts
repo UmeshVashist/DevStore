@@ -16,6 +16,7 @@ import {
   getDriveClient,
   getGoogleAuth,
 } from "./google-auth";
+import { getStoredAccounts } from "./google-oauth-store";
 
 // Memory caches to significantly boost performance on Vercel
 interface FileCountsCache {
@@ -43,12 +44,44 @@ function escapeQueryValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
+async function resolveDriveEmail(driveEmail?: string): Promise<string | undefined> {
+  if (driveEmail === "all") {
+    const accounts = getStoredAccounts();
+    if (accounts.length === 0) return undefined;
+    if (accounts.length === 1) return accounts[0].email;
+
+    // Check storage quota of each and pick the one with the most free bytes
+    let bestEmail = accounts[0].email;
+    let maxFree = -1;
+    await Promise.all(
+      accounts.map(async (acc) => {
+        try {
+          const drive = getDriveClient(acc.email);
+          const about = await drive.about.get({ fields: "storageQuota" });
+          const quota = about.data.storageQuota;
+          if (quota && quota.limit && quota.usage) {
+            const free = parseInt(quota.limit, 10) - parseInt(quota.usage, 10);
+            if (free > maxFree) {
+              maxFree = free;
+              bestEmail = acc.email;
+            }
+          }
+        } catch (err) {
+          console.error(`Error querying quota for resolving best drive ${acc.email}:`, err);
+        }
+      })
+    );
+    return bestEmail;
+  }
+  return driveEmail;
+}
+
 async function findOrCreateFolder(
+  drive: drive_v3.Drive,
   name: string,
   parentId: string,
   userId?: string
 ): Promise<string> {
-  const drive = getDriveClient();
   const safeName = escapeQueryValue(name);
   const query = `name='${safeName}' and '${parentId}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`;
 
@@ -77,28 +110,42 @@ async function findOrCreateFolder(
   return folder.data.id!;
 }
 
-async function getUserFolders(userId: string) {
+async function getUserFolders(userId: string, driveEmail?: string) {
   const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
   if (!rootFolderId) {
     throw new Error("GOOGLE_DRIVE_FOLDER_ID not configured in .env.local");
   }
 
-  const userFolderId = await findOrCreateFolder(userId, rootFolderId, userId);
-  const filesFolderId = await findOrCreateFolder("files", userFolderId, userId);
-  const trashFolderId = await findOrCreateFolder("trash", userFolderId, userId);
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+
+  let actualRootId = rootFolderId;
+  try {
+    await drive.files.get({
+      fileId: rootFolderId,
+      fields: "id",
+    });
+  } catch {
+    actualRootId = await findOrCreateFolder(drive, "DevData", "root");
+  }
+
+  const userFolderId = await findOrCreateFolder(drive, userId, actualRootId, userId);
+  const filesFolderId = await findOrCreateFolder(drive, "files", userFolderId, userId);
+  const trashFolderId = await findOrCreateFolder(drive, "trash", userFolderId, userId);
 
   return { filesFolderId, trashFolderId };
 }
 
-export async function getUserFilesRoot(userId: string): Promise<string> {
-  const { filesFolderId } = await getUserFolders(userId);
+export async function getUserFilesRoot(userId: string, driveEmail?: string): Promise<string> {
+  const { filesFolderId } = await getUserFolders(userId, driveEmail);
   return filesFolderId;
 }
 
 async function isUnderFolder(
   itemId: string,
-  ancestorId: string
+  ancestorId: string,
+  driveEmail?: string
 ): Promise<boolean> {
   const cacheKey = `${itemId}:${ancestorId}`;
   const now = Date.now();
@@ -107,7 +154,8 @@ async function isUnderFolder(
     return cached.result;
   }
 
-  const drive = getDriveClient();
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
   let currentId: string | null = itemId;
 
   while (currentId) {
@@ -140,14 +188,16 @@ async function isUnderFolder(
 
 export async function verifyUserOwnsFolder(
   userId: string,
-  folderId: string
+  folderId: string,
+  driveEmail?: string
 ): Promise<boolean> {
-  const { filesFolderId, trashFolderId } = await getUserFolders(userId);
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const { filesFolderId, trashFolderId } = await getUserFolders(userId, resolvedEmail);
   if (folderId === filesFolderId) return true;
   if (folderId === trashFolderId) return true;
 
   try {
-    const drive = getDriveClient();
+    const drive = getDriveClient(resolvedEmail);
     const res = await drive.files.get({
       ...DRIVE_OPTS,
       fileId: folderId,
@@ -162,24 +212,27 @@ export async function verifyUserOwnsFolder(
     console.error("verifyUserOwnsFolder appProperties check failed:", err);
   }
 
-  const inFiles = await isUnderFolder(folderId, filesFolderId);
+  const inFiles = await isUnderFolder(folderId, filesFolderId, resolvedEmail);
   if (inFiles) return true;
 
-  return isUnderFolder(folderId, trashFolderId);
+  return isUnderFolder(folderId, trashFolderId, resolvedEmail);
 }
 
-function mapDriveFile(file: {
-  id?: string | null;
-  name?: string | null;
-  mimeType?: string | null;
-  size?: string | null;
-  createdTime?: string | null;
-  modifiedTime?: string | null;
-  webViewLink?: string | null;
-  webContentLink?: string | null;
-  appProperties?: Record<string, string> | null;
-  parents?: string[] | null;
-}): DriveFile {
+function mapDriveFile(
+  file: {
+    id?: string | null;
+    name?: string | null;
+    mimeType?: string | null;
+    size?: string | null;
+    createdTime?: string | null;
+    modifiedTime?: string | null;
+    webViewLink?: string | null;
+    webContentLink?: string | null;
+    appProperties?: Record<string, string> | null;
+    parents?: string[] | null;
+  },
+  driveEmail?: string
+): DriveFile {
   const rawName = file.name || "Untitled";
   const name = rawName.replace(/\\/g, "/").split("/").pop() || rawName;
   const mimeType = file.mimeType || "application/octet-stream";
@@ -197,6 +250,7 @@ function mapDriveFile(file: {
     parentId: file.parents?.[0],
     category: getFileCategory(name, mimeType),
     isFolder: false,
+    driveEmail,
   };
 }
 
@@ -292,7 +346,8 @@ function mapDriveFolder(
     modifiedTime?: string | null;
     parents?: string[] | null;
   },
-  fileCounts?: Record<string, number>
+  fileCounts?: Record<string, number>,
+  driveEmail?: string
 ): DriveFolder {
   const rawName = file.name || "Untitled";
   const name = rawName.replace(/\\/g, "/").split("/").pop() || rawName;
@@ -304,19 +359,54 @@ function mapDriveFolder(
     parentId: file.parents?.[0],
     isFolder: true,
     fileCount: fileCounts ? (fileCounts[file.id!] || 0) : 0,
+    driveEmail,
   };
 }
 
 export async function listBrowseItems(
   userId: string,
-  folderId?: string
+  folderId?: string,
+  driveEmail?: string
 ): Promise<DriveItem[]> {
-  const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+  if (driveEmail === "all") {
+    const accounts = getStoredAccounts();
+    if (accounts.length === 0) {
+      return listSingleBrowseItems(userId, folderId);
+    }
+
+    const results = await Promise.all(
+      accounts.map(async (acc) => {
+        try {
+          return await listSingleBrowseItems(userId, folderId, acc.email);
+        } catch (err) {
+          console.error(`Error listing items for ${acc.email}:`, err);
+          return [];
+        }
+      })
+    );
+
+    const merged = results.flat();
+    return merged.sort((a, b) => {
+      if (a.isFolder && !b.isFolder) return -1;
+      if (!a.isFolder && b.isFolder) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  return listSingleBrowseItems(userId, folderId, driveEmail);
+}
+
+async function listSingleBrowseItems(
+  userId: string,
+  folderId?: string,
+  driveEmail?: string
+): Promise<DriveItem[]> {
+  const drive = getDriveClient(driveEmail);
+  const { filesFolderId } = await getUserFolders(userId, driveEmail);
 
   let parentId = filesFolderId;
   if (folderId) {
-    const owns = await verifyUserOwnsFolder(userId, folderId);
+    const owns = await verifyUserOwnsFolder(userId, folderId, driveEmail);
     if (!owns) throw new Error("Folder not found");
     parentId = folderId;
   }
@@ -338,22 +428,41 @@ export async function listBrowseItems(
 
   for (const file of res.data.files || []) {
     if (file.mimeType === FOLDER_MIME) {
-      items.push(mapDriveFolder(file, fileCounts));
+      items.push(mapDriveFolder(file, fileCounts, driveEmail));
     } else {
-      items.push(mapDriveFile(file));
+      items.push(mapDriveFile(file, driveEmail));
     }
   }
 
-  return items.sort((a, b) => {
-    if (a.isFolder && !b.isFolder) return -1;
-    if (!a.isFolder && b.isFolder) return 1;
-    return a.name.localeCompare(b.name);
-  });
+  return items;
 }
 
-export async function listAllUserFolders(userId: string): Promise<DriveFolder[]> {
-  const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+export async function listAllUserFolders(userId: string, driveEmail?: string): Promise<DriveFolder[]> {
+  if (driveEmail === "all") {
+    const accounts = getStoredAccounts();
+    if (accounts.length === 0) {
+      return listSingleAllUserFolders(userId);
+    }
+    const results = await Promise.all(
+      accounts.map(async (acc) => {
+        try {
+          return await listSingleAllUserFolders(userId, acc.email);
+        } catch (err) {
+          console.error(`Error listing all folders for ${acc.email}:`, err);
+          return [];
+        }
+      })
+    );
+    const merged = results.flat();
+    return merged.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  return listSingleAllUserFolders(userId, driveEmail);
+}
+
+async function listSingleAllUserFolders(userId: string, driveEmail?: string): Promise<DriveFolder[]> {
+  const drive = getDriveClient(driveEmail);
+  const { filesFolderId } = await getUserFolders(userId, driveEmail);
   const fileCounts = await getFolderFileCounts(drive);
 
   const res = await drive.files.list({
@@ -364,11 +473,8 @@ export async function listAllUserFolders(userId: string): Promise<DriveFolder[]>
     pageSize: 200,
   });
 
-  const topLevel = (res.data.files || []).map((f) => mapDriveFolder(f, fileCounts));
+  const topLevel = (res.data.files || []).map((f) => mapDriveFolder(f, fileCounts, driveEmail));
 
-
-
-  // Recursive fetch: get all folders by searching with filesFolderId as ancestor
   const folders: DriveFolder[] = [...topLevel];
   const seen = new Set(folders.map((f) => f.id));
 
@@ -382,7 +488,7 @@ export async function listAllUserFolders(userId: string): Promise<DriveFolder[]>
       });
       const newIds: string[] = [];
       for (const f of childRes.data.files || []) {
-        const folder = mapDriveFolder(f, fileCounts);
+        const folder = mapDriveFolder(f, fileCounts, driveEmail);
         if (!seen.has(folder.id)) {
           seen.add(folder.id);
           folders.push(folder);
@@ -393,7 +499,9 @@ export async function listAllUserFolders(userId: string): Promise<DriveFolder[]>
     }
   }
 
-  await fetchChildren(topLevel.map((f) => f.id));
+  if (topLevel.length > 0) {
+    await fetchChildren(topLevel.map((f) => f.id));
+  }
 
   return folders.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -442,9 +550,7 @@ async function getUniqueFilename(
     counter++;
   }
 
-  // Update the cached set locally to prevent collisions with other concurrent files
   existingNames.add(uniqueName.toLowerCase());
-
   return uniqueName;
 }
 
@@ -471,14 +577,16 @@ async function createUniqueFolder(
 export async function createUserFolder(
   userId: string,
   name: string,
-  parentFolderId?: string
+  parentFolderId?: string,
+  driveEmail?: string
 ): Promise<DriveFolder> {
-  const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const { filesFolderId } = await getUserFolders(userId, resolvedEmail);
 
   let parentId = filesFolderId;
   if (parentFolderId) {
-    const owns = await verifyUserOwnsFolder(userId, parentFolderId);
+    const owns = await verifyUserOwnsFolder(userId, parentFolderId, resolvedEmail);
     if (!owns) throw new Error("Parent folder not found");
     parentId = parentFolderId;
   }
@@ -502,7 +610,7 @@ export async function createUserFolder(
     throw new Error("This Name folder already created");
   }
 
-  const folderId = await findOrCreateFolder(trimmed, parentId, userId);
+  const folderId = await findOrCreateFolder(drive, trimmed, parentId, userId);
   const folderRes = await drive.files.get({
     ...DRIVE_OPTS,
     fileId: folderId,
@@ -510,27 +618,29 @@ export async function createUserFolder(
   });
 
   clearRelationCache();
-  return mapDriveFolder(folderRes.data);
+  return mapDriveFolder(folderRes.data, undefined, resolvedEmail);
 }
 
 export async function ensureFolderPath(
   userId: string,
   pathParts: string[],
-  baseFolderId?: string
+  baseFolderId?: string,
+  driveEmail?: string
 ): Promise<string> {
-  const cacheKey = `${userId}:${baseFolderId || "root"}:${pathParts.join("/")}`;
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const cacheKey = `${userId}:${baseFolderId || "root"}:${pathParts.join("/")}:${resolvedEmail || "default"}`;
   const now = Date.now();
   const cached = folderPathCache.get(cacheKey);
   if (cached && (now - cached.timestamp < FOLDER_PATH_CACHE_TTL)) {
     return cached.id;
   }
 
-  const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+  const drive = getDriveClient(resolvedEmail);
+  const { filesFolderId } = await getUserFolders(userId, resolvedEmail);
   let currentId = baseFolderId || filesFolderId;
 
   if (baseFolderId) {
-    const owns = await verifyUserOwnsFolder(userId, baseFolderId);
+    const owns = await verifyUserOwnsFolder(userId, baseFolderId, resolvedEmail);
     if (!owns) throw new Error("Base folder not found");
   }
 
@@ -538,7 +648,6 @@ export async function ensureFolderPath(
   for (const part of pathParts) {
     if (!part || part === ".") continue;
     if (isFirst) {
-      // Make the top-level part unique if there's a conflict
       const safeName = escapeQueryValue(part);
       const query = `name='${safeName}' and '${currentId}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`;
       const res = await drive.files.list({
@@ -551,11 +660,11 @@ export async function ensureFolderPath(
       if (res.data.files && res.data.files.length > 0) {
         currentId = await createUniqueFolder(drive, part, currentId, userId);
       } else {
-        currentId = await findOrCreateFolder(part, currentId, userId);
+        currentId = await findOrCreateFolder(drive, part, currentId, userId);
       }
       isFirst = false;
     } else {
-      currentId = await findOrCreateFolder(part, currentId, userId);
+      currentId = await findOrCreateFolder(drive, part, currentId, userId);
     }
   }
 
@@ -563,19 +672,50 @@ export async function ensureFolderPath(
   return currentId;
 }
 
-export async function listUserFiles(userId: string, folderId?: string): Promise<DriveFile[]> {
-  const items = await listBrowseItems(userId, folderId);
+export async function listUserFiles(
+  userId: string,
+  folderId?: string,
+  driveEmail?: string
+): Promise<DriveFile[]> {
+  const items = await listBrowseItems(userId, folderId, driveEmail);
   return items.filter((item): item is DriveFile => !item.isFolder);
 }
 
-export async function listTrashFiles(userId: string): Promise<DriveFile[]> {
-  const items = await listTrashItems(userId);
+export async function listTrashFiles(userId: string, driveEmail?: string): Promise<DriveFile[]> {
+  const items = await listTrashItems(userId, driveEmail);
   return items.filter((item): item is DriveFile => !item.isFolder);
 }
 
-export async function listTrashItems(userId: string): Promise<DriveItem[]> {
-  const drive = getDriveClient();
-  const { trashFolderId } = await getUserFolders(userId);
+export async function listTrashItems(userId: string, driveEmail?: string): Promise<DriveItem[]> {
+  if (driveEmail === "all") {
+    const accounts = getStoredAccounts();
+    if (accounts.length === 0) {
+      return listSingleTrashItems(userId);
+    }
+    const results = await Promise.all(
+      accounts.map(async (acc) => {
+        try {
+          return await listSingleTrashItems(userId, acc.email);
+        } catch (err) {
+          console.error(`Error listing trash for ${acc.email}:`, err);
+          return [];
+        }
+      })
+    );
+    const merged = results.flat();
+    return merged.sort((a, b) => {
+      const timeA = a.deletedAt || a.modifiedAt;
+      const timeB = b.deletedAt || b.modifiedAt;
+      return timeB.localeCompare(timeA);
+    });
+  }
+
+  return listSingleTrashItems(userId, driveEmail);
+}
+
+async function listSingleTrashItems(userId: string, driveEmail?: string): Promise<DriveItem[]> {
+  const drive = getDriveClient(driveEmail);
+  const { trashFolderId } = await getUserFolders(userId, driveEmail);
 
   const res = await drive.files.list({
     ...DRIVE_LIST_OPTS,
@@ -590,11 +730,11 @@ export async function listTrashItems(userId: string): Promise<DriveItem[]> {
   for (const file of res.data.files || []) {
     if (file.mimeType === FOLDER_MIME) {
       items.push({
-        ...mapDriveFolder(file),
+        ...mapDriveFolder(file, undefined, driveEmail),
         deletedAt: file.appProperties?.deletedAt,
       });
     } else {
-      items.push(mapDriveFile(file));
+      items.push(mapDriveFile(file, driveEmail));
     }
   }
 
@@ -606,14 +746,16 @@ export async function uploadFile(
   filename: string,
   mimeType: string,
   mediaBody: Readable | Buffer,
-  parentFolderId?: string
+  parentFolderId?: string,
+  driveEmail?: string
 ): Promise<DriveFile> {
-  const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const { filesFolderId } = await getUserFolders(userId, resolvedEmail);
 
   let parentId = filesFolderId;
   if (parentFolderId) {
-    const owns = await verifyUserOwnsFolder(userId, parentFolderId);
+    const owns = await verifyUserOwnsFolder(userId, parentFolderId, resolvedEmail);
     if (!owns) throw new Error("Destination folder not found");
     parentId = parentFolderId;
   }
@@ -638,7 +780,7 @@ export async function uploadFile(
     });
 
     clearRelationCache();
-    return mapDriveFile(res.data);
+    return mapDriveFile(res.data, resolvedEmail);
   } catch (error) {
     throw new Error(formatDriveError(error));
   }
@@ -649,22 +791,29 @@ export async function uploadFileWithRelativePath(
   relativePath: string,
   mimeType: string,
   mediaBody: Readable | Buffer,
-  baseFolderId?: string
+  baseFolderId?: string,
+  driveEmail?: string
 ): Promise<DriveFile> {
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
   const parts = relativePath.replace(/\\/g, "/").split("/");
   const filename = parts.pop() || "file";
   const folderParts = parts;
 
   const parentId = folderParts.length
-    ? await ensureFolderPath(userId, folderParts, baseFolderId)
-    : baseFolderId || (await getUserFilesRoot(userId));
+    ? await ensureFolderPath(userId, folderParts, baseFolderId, resolvedEmail)
+    : baseFolderId || (await getUserFilesRoot(userId, resolvedEmail));
 
-  return uploadFile(userId, filename, mimeType, mediaBody, parentId);
+  return uploadFile(userId, filename, mimeType, mediaBody, parentId, resolvedEmail);
 }
 
-export async function getFile(userId: string, fileId: string): Promise<DriveFile | null> {
-  const drive = getDriveClient();
-  await getUserFolders(userId);
+export async function getFile(
+  userId: string,
+  fileId: string,
+  driveEmail?: string
+): Promise<DriveFile | null> {
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  await getUserFolders(userId, resolvedEmail);
 
   try {
     const res = await drive.files.get({
@@ -673,7 +822,7 @@ export async function getFile(userId: string, fileId: string): Promise<DriveFile
       fields: "id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents,appProperties",
     });
     if (res.data.mimeType === FOLDER_MIME) return null;
-    return mapDriveFile(res.data);
+    return mapDriveFile(res.data, resolvedEmail);
   } catch {
     return null;
   }
@@ -681,10 +830,12 @@ export async function getFile(userId: string, fileId: string): Promise<DriveFile
 
 export async function getFolderPath(
   userId: string,
-  folderId: string
+  folderId: string,
+  driveEmail?: string
 ): Promise<{ id: string; name: string }[]> {
-  const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const { filesFolderId } = await getUserFolders(userId, resolvedEmail);
   const path: { id: string; name: string }[] = [];
   let currentId: string | null = folderId;
 
@@ -702,11 +853,16 @@ export async function getFolderPath(
   return path;
 }
 
-export async function downloadFile(userId: string, fileId: string): Promise<{ buffer: Buffer; file: DriveFile }> {
-  const file = await getFile(userId, fileId);
+export async function downloadFile(
+  userId: string,
+  fileId: string,
+  driveEmail?: string
+): Promise<{ buffer: Buffer; file: DriveFile }> {
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const file = await getFile(userId, fileId, resolvedEmail);
   if (!file) throw new Error("File not found");
 
-  const drive = getDriveClient();
+  const drive = getDriveClient(resolvedEmail);
   const res = await drive.files.get(
     { ...DRIVE_OPTS, fileId, alt: "media" },
     { responseType: "arraybuffer" }
@@ -718,11 +874,12 @@ export async function downloadFile(userId: string, fileId: string): Promise<{ bu
   };
 }
 
-export async function deleteFile(userId: string, fileId: string): Promise<void> {
-  const drive = getDriveClient();
-  const { trashFolderId } = await getUserFolders(userId);
+export async function deleteFile(userId: string, fileId: string, driveEmail?: string): Promise<void> {
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const { trashFolderId } = await getUserFolders(userId, resolvedEmail);
 
-  const file = await getFile(userId, fileId);
+  const file = await getFile(userId, fileId, resolvedEmail);
   if (!file) throw new Error("File not found");
 
   const parentsRes = await drive.files.get({
@@ -747,13 +904,14 @@ export async function deleteFile(userId: string, fileId: string): Promise<void> 
   clearRelationCache();
 }
 
-export async function deleteFolder(userId: string, folderId: string): Promise<void> {
-  const drive = getDriveClient();
-  const { trashFolderId, filesFolderId } = await getUserFolders(userId);
+export async function deleteFolder(userId: string, folderId: string, driveEmail?: string): Promise<void> {
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const { trashFolderId, filesFolderId } = await getUserFolders(userId, resolvedEmail);
 
   if (folderId === filesFolderId) throw new Error("Cannot delete root folder");
 
-  const owns = await verifyUserOwnsFolder(userId, folderId);
+  const owns = await verifyUserOwnsFolder(userId, folderId, resolvedEmail);
   if (!owns) throw new Error("Folder not found");
 
   const parentsRes = await drive.files.get({
@@ -779,9 +937,10 @@ export async function deleteFolder(userId: string, folderId: string): Promise<vo
   clearRelationCache();
 }
 
-export async function restoreFile(userId: string, fileId: string): Promise<DriveFile> {
-  const drive = getDriveClient();
-  const { filesFolderId, trashFolderId } = await getUserFolders(userId);
+export async function restoreFile(userId: string, fileId: string, driveEmail?: string): Promise<DriveFile> {
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const { filesFolderId, trashFolderId } = await getUserFolders(userId, resolvedEmail);
 
   const res = await drive.files.get({
     ...DRIVE_OPTS,
@@ -794,11 +953,11 @@ export async function restoreFile(userId: string, fileId: string): Promise<Drive
   let restoreParent = filesFolderId;
 
   if (originalParentId) {
-    const ownsParent = await verifyUserOwnsFile(userId, originalParentId);
+    const ownsParent = await verifyUserOwnsFile(userId, originalParentId, resolvedEmail);
     if (ownsParent) {
-      const isParentInTrash = await isUnderFolder(originalParentId, trashFolderId);
+      const isParentInTrash = await isUnderFolder(originalParentId, trashFolderId, resolvedEmail);
       if (isParentInTrash) {
-        await restoreFolder(userId, originalParentId);
+        await restoreFolder(userId, originalParentId, resolvedEmail);
       }
       restoreParent = originalParentId;
     }
@@ -823,12 +982,13 @@ export async function restoreFile(userId: string, fileId: string): Promise<Drive
     fields: "id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents",
   });
 
-  return mapDriveFile(updated.data);
+  return mapDriveFile(updated.data, resolvedEmail);
 }
 
-export async function restoreFolder(userId: string, folderId: string): Promise<DriveFolder> {
-  const drive = getDriveClient();
-  const { filesFolderId, trashFolderId } = await getUserFolders(userId);
+export async function restoreFolder(userId: string, folderId: string, driveEmail?: string): Promise<DriveFolder> {
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const { filesFolderId, trashFolderId } = await getUserFolders(userId, resolvedEmail);
 
   const res = await drive.files.get({
     ...DRIVE_OPTS,
@@ -841,11 +1001,11 @@ export async function restoreFolder(userId: string, folderId: string): Promise<D
   let restoreParent = filesFolderId;
 
   if (originalParentId) {
-    const ownsParent = await verifyUserOwnsFile(userId, originalParentId);
+    const ownsParent = await verifyUserOwnsFile(userId, originalParentId, resolvedEmail);
     if (ownsParent) {
-      const isParentInTrash = await isUnderFolder(originalParentId, trashFolderId);
+      const isParentInTrash = await isUnderFolder(originalParentId, trashFolderId, resolvedEmail);
       if (isParentInTrash) {
-        await restoreFolder(userId, originalParentId);
+        await restoreFolder(userId, originalParentId, resolvedEmail);
       }
       restoreParent = originalParentId;
     }
@@ -870,12 +1030,13 @@ export async function restoreFolder(userId: string, folderId: string): Promise<D
     fields: "id,name,createdTime,modifiedTime,parents",
   });
 
-  return mapDriveFolder(updated.data);
+  return mapDriveFolder(updated.data, undefined, resolvedEmail);
 }
 
-export async function permanentlyDeleteFile(userId: string, fileId: string): Promise<void> {
-  const drive = getDriveClient();
-  await getUserFolders(userId);
+export async function permanentlyDeleteFile(userId: string, fileId: string, driveEmail?: string): Promise<void> {
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  await getUserFolders(userId, resolvedEmail);
   try {
     await drive.files.delete({ ...DRIVE_OPTS, fileId });
   } catch (err) {
@@ -906,9 +1067,30 @@ export async function permanentlyDeleteFile(userId: string, fileId: string): Pro
   clearRelationCache();
 }
 
-export async function purgeExpiredTrash(userId: string): Promise<number> {
-  const drive = getDriveClient();
-  const { trashFolderId } = await getUserFolders(userId);
+export async function purgeExpiredTrash(userId: string, driveEmail?: string): Promise<number> {
+  if (driveEmail === "all") {
+    const accounts = getStoredAccounts();
+    if (accounts.length === 0) {
+      return purgeSingleExpiredTrash(userId);
+    }
+    const results = await Promise.all(
+      accounts.map(async (acc) => {
+        try {
+          return await purgeSingleExpiredTrash(userId, acc.email);
+        } catch (err) {
+          console.error(`Error purging trash for ${acc.email}:`, err);
+          return 0;
+        }
+      })
+    );
+    return results.reduce((acc, val) => acc + val, 0);
+  }
+  return purgeSingleExpiredTrash(userId, driveEmail);
+}
+
+async function purgeSingleExpiredTrash(userId: string, driveEmail?: string): Promise<number> {
+  const drive = getDriveClient(driveEmail);
+  const { trashFolderId } = await getUserFolders(userId, driveEmail);
 
   const res = await drive.files.list({
     ...DRIVE_LIST_OPTS,
@@ -937,11 +1119,16 @@ export async function purgeExpiredTrash(userId: string): Promise<number> {
   return purged;
 }
 
-export async function verifyUserOwnsFile(userId: string, fileId: string): Promise<boolean> {
-  const { filesFolderId, trashFolderId } = await getUserFolders(userId);
+export async function verifyUserOwnsFile(
+  userId: string,
+  fileId: string,
+  driveEmail?: string
+): Promise<boolean> {
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const { filesFolderId, trashFolderId } = await getUserFolders(userId, resolvedEmail);
 
   try {
-    const drive = getDriveClient();
+    const drive = getDriveClient(resolvedEmail);
     const res = await drive.files.get({
       ...DRIVE_OPTS,
       fileId: fileId,
@@ -956,24 +1143,26 @@ export async function verifyUserOwnsFile(userId: string, fileId: string): Promis
     console.error("verifyUserOwnsFile appProperties check failed:", err);
   }
 
-  const inFiles = await isUnderFolder(fileId, filesFolderId);
+  const inFiles = await isUnderFolder(fileId, filesFolderId, resolvedEmail);
   if (inFiles) return true;
 
-  return isUnderFolder(fileId, trashFolderId);
+  return isUnderFolder(fileId, trashFolderId, resolvedEmail);
 }
 
 export async function copyFile(
   userId: string,
   fileId: string,
-  targetFolderId?: string
+  targetFolderId?: string,
+  driveEmail?: string
 ): Promise<drive_v3.Schema$File> {
-  const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const { filesFolderId } = await getUserFolders(userId, resolvedEmail);
   const destId = targetFolderId || filesFolderId;
 
-  const ownsFile = await verifyUserOwnsFile(userId, fileId);
+  const ownsFile = await verifyUserOwnsFile(userId, fileId, resolvedEmail);
   if (!ownsFile) throw new Error("File not found");
-  const destOwns = await verifyUserOwnsFolder(userId, destId);
+  const destOwns = await verifyUserOwnsFolder(userId, destId, resolvedEmail);
   if (!destOwns) throw new Error("Destination folder not found");
 
   const res = await drive.files.copy({
@@ -991,15 +1180,17 @@ export async function copyFile(
 export async function copyFolder(
   userId: string,
   folderId: string,
-  targetFolderId?: string
+  targetFolderId?: string,
+  driveEmail?: string
 ): Promise<string> {
-  const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const { filesFolderId } = await getUserFolders(userId, resolvedEmail);
   const destId = targetFolderId || filesFolderId;
 
-  const ownsFolder = await verifyUserOwnsFolder(userId, folderId);
+  const ownsFolder = await verifyUserOwnsFolder(userId, folderId, resolvedEmail);
   if (!ownsFolder) throw new Error("Folder not found");
-  const destOwns = await verifyUserOwnsFolder(userId, destId);
+  const destOwns = await verifyUserOwnsFolder(userId, destId, resolvedEmail);
   if (!destOwns) throw new Error("Destination folder not found");
 
   const srcMeta = await drive.files.get({
@@ -1008,7 +1199,7 @@ export async function copyFolder(
     fields: "name",
   });
 
-  const newFolderId = await findOrCreateFolder(srcMeta.data.name || "Copied Folder", destId, userId);
+  const newFolderId = await findOrCreateFolder(drive, srcMeta.data.name || "Copied Folder", destId, userId);
 
   const res = await drive.files.list({
     ...DRIVE_LIST_OPTS,
@@ -1019,7 +1210,7 @@ export async function copyFolder(
 
   for (const item of res.data.files || []) {
     if (item.mimeType === FOLDER_MIME) {
-      await copyFolder(userId, item.id!, newFolderId);
+      await copyFolder(userId, item.id!, newFolderId, resolvedEmail);
     } else {
       await drive.files.copy({
         ...DRIVE_OPTS,
@@ -1039,13 +1230,15 @@ export async function copyFolder(
 export async function moveItem(
   userId: string,
   itemId: string,
-  targetFolderId?: string
+  targetFolderId?: string,
+  driveEmail?: string
 ): Promise<void> {
-  const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const { filesFolderId } = await getUserFolders(userId, resolvedEmail);
   const destId = targetFolderId || filesFolderId;
 
-  const destOwns = await verifyUserOwnsFolder(userId, destId);
+  const destOwns = await verifyUserOwnsFolder(userId, destId, resolvedEmail);
   if (!destOwns) throw new Error("Destination folder not found");
 
   const file = await drive.files.get({
@@ -1066,9 +1259,42 @@ export async function moveItem(
   clearRelationCache();
 }
 
-export async function getStorageQuota(): Promise<{ limit?: string; usage?: string }> {
+export async function getStorageQuota(driveEmail?: string): Promise<{ limit?: string; usage?: string }> {
+  if (driveEmail === "all") {
+    const accounts = getStoredAccounts();
+    if (accounts.length === 0) {
+      return getSingleStorageQuota();
+    }
+
+    let totalLimit = 0;
+    let totalUsage = 0;
+
+    await Promise.all(
+      accounts.map(async (acc) => {
+        try {
+          const quota = await getSingleStorageQuota(acc.email);
+          if (quota) {
+            totalLimit += parseInt(quota.limit || "0", 10);
+            totalUsage += parseInt(quota.usage || "0", 10);
+          }
+        } catch (err) {
+          console.error(`Error querying storage quota for ${acc.email}:`, err);
+        }
+      })
+    );
+
+    return {
+      limit: totalLimit.toString(),
+      usage: totalUsage.toString(),
+    };
+  }
+
+  return getSingleStorageQuota(driveEmail);
+}
+
+async function getSingleStorageQuota(driveEmail?: string): Promise<{ limit?: string; usage?: string }> {
   try {
-    const drive = getDriveClient();
+    const drive = getDriveClient(driveEmail);
     const res = await drive.about.get({
       fields: "storageQuota",
     });
@@ -1082,11 +1308,13 @@ export async function getStorageQuota(): Promise<{ limit?: string; usage?: strin
 export async function renameItem(
   userId: string,
   itemId: string,
-  newName: string
+  newName: string,
+  driveEmail?: string
 ): Promise<void> {
-  const drive = getDriveClient();
-  const ownsFile = await verifyUserOwnsFile(userId, itemId);
-  const ownsFolder = await verifyUserOwnsFolder(userId, itemId);
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const ownsFile = await verifyUserOwnsFile(userId, itemId, resolvedEmail);
+  const ownsFolder = await verifyUserOwnsFolder(userId, itemId, resolvedEmail);
 
   if (!ownsFile && !ownsFolder) {
     throw new Error("Item not found or unauthorized");
@@ -1108,14 +1336,16 @@ export async function createUploadSession(
   mimeType: string,
   fileSize: number,
   parentFolderId?: string,
-  origin?: string
+  origin?: string,
+  driveEmail?: string
 ): Promise<{ uploadUrl: string; uniqueName: string; parentId: string }> {
-  const drive = getDriveClient();
-  const { filesFolderId } = await getUserFolders(userId);
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
+  const drive = getDriveClient(resolvedEmail);
+  const { filesFolderId } = await getUserFolders(userId, resolvedEmail);
 
   let parentId = filesFolderId;
   if (parentFolderId) {
-    const owns = await verifyUserOwnsFolder(userId, parentFolderId);
+    const owns = await verifyUserOwnsFolder(userId, parentFolderId, resolvedEmail);
     if (!owns) throw new Error("Destination folder not found");
     parentId = parentFolderId;
   }
@@ -1124,7 +1354,7 @@ export async function createUploadSession(
   const uniqueName = await getUniqueFilename(drive, parentId, filename, mimeType);
 
   // Get the authorization token
-  const auth = getGoogleAuth();
+  const auth = getGoogleAuth(resolvedEmail);
   const tokenInfo = await auth.getAccessToken();
   const accessToken = tokenInfo.token;
 
@@ -1176,17 +1406,19 @@ export async function createUploadSessionWithRelativePath(
   mimeType: string,
   fileSize: number,
   baseFolderId?: string,
-  origin?: string
+  origin?: string,
+  driveEmail?: string
 ): Promise<{ uploadUrl: string; uniqueName: string; parentId: string }> {
+  const resolvedEmail = await resolveDriveEmail(driveEmail);
   const parts = relativePath.replace(/\\/g, "/").split("/");
   const filename = parts.pop() || "file";
   const folderParts = parts;
 
   const parentId = folderParts.length
-    ? await ensureFolderPath(userId, folderParts, baseFolderId)
-    : baseFolderId || (await getUserFilesRoot(userId));
+    ? await ensureFolderPath(userId, folderParts, baseFolderId, resolvedEmail)
+    : baseFolderId || (await getUserFilesRoot(userId, resolvedEmail));
 
-  return createUploadSession(userId, filename, mimeType, fileSize, parentId, origin);
+  return createUploadSession(userId, filename, mimeType, fileSize, parentId, origin, resolvedEmail);
 }
 
 export { getDriveAuthMode };

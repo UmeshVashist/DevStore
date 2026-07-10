@@ -10,6 +10,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const driveEmail =
+      request.headers.get("x-drive-email") ||
+      request.nextUrl.searchParams.get("driveEmail") ||
+      undefined;
+
     const body = await request.json();
     const relativePath = body.relativePath as string;
     const baseFolderId = body.baseFolderId as string | undefined;
@@ -20,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Since we handle folder levels one by one, pathParts contains exactly one folder name
     const pathParts = [relativePath.trim()];
-    const folderId = await ensureFolderPath(userId, pathParts, baseFolderId);
+    const folderId = await ensureFolderPath(userId, pathParts, baseFolderId, driveEmail);
 
     return NextResponse.json({ folderId }, { status: 200 });
   } catch (error) {
