@@ -15,7 +15,7 @@ export default function SignUpPage() {
           <h1 className="text-3xl font-bold text-white mb-2">Create Account</h1>
           <p className="text-white/60">Start storing your files in the cloud</p>
         </div> */}
-        <div className="glass rounded-2xl p-6">
+        <div className="glass-neo-out p-8 border border-slate-200/50 dark:border-white/10 rounded-3xl shadow-2xl relative z-10 bg-[#fdfbf7]/40 dark:bg-black/10">
           <AuthRedirect>
             <SignUp
               routing="path"

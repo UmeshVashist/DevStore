@@ -15,7 +15,7 @@ export default function SignInPage() {
           <h1 className="text-3xl font-bold text-white mb-2">Welcome to DevData</h1>
           <p className="text-white/60">Sign in to access your cloud storage</p>
         </div> */}
-        <div className="glass rounded-2xl p-6">
+        <div className="glass-neo-out p-8 border border-slate-200/50 dark:border-white/10 rounded-3xl shadow-2xl relative z-10 bg-[#fdfbf7]/40 dark:bg-black/10">
           <AuthRedirect>
             <SignIn
               routing="path"
