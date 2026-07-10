@@ -6,6 +6,7 @@ import { Cloud, Database } from "lucide-react";
 import { motion } from "framer-motion";
 import { ThemeToggle } from "./ThemeToggle";
 import { APP_NAME } from "@/lib/constants";
+import { CustomDropdown } from "./CustomDropdown";
 
 function formatBytes(bytesStr: string | undefined): string {
   if (!bytesStr) return "0 B";
@@ -59,7 +60,7 @@ export function Header({
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="glass rounded-2xl px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 mb-8"
+      className="glass-neo-out rounded-2xl px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 mb-8 relative z-50"
     >
       <div className="flex items-center gap-3 w-full md:w-auto">
         <motion.div
@@ -70,21 +71,21 @@ export function Header({
           <Database className="w-5 h-5 text-white" />
         </motion.div>
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight">{APP_NAME}</h1>
-          <p className="text-xs text-white/60 flex items-center gap-1">
-            <Cloud className="w-3 h-3" /> Google Drive Cloud Storage
+          <h1 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">{APP_NAME}</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            <Cloud className="w-3 h-3 text-indigo-500" /> Google Drive Cloud Storage
           </p>
         </div>
       </div>
 
       {quota && (
         <div className="flex flex-col items-center gap-1.5 max-w-xs w-full px-4">
-          <div className="flex justify-between w-full text-[11px] text-white/70">
-            <span>Used: <span className="font-semibold text-white">{usedText}</span> of <span className="font-semibold text-white">{limitText}</span></span>
+          <div className="flex justify-between w-full text-[11px] text-slate-500 dark:text-slate-400">
+            <span>Used: <span className="font-semibold text-slate-800 dark:text-white">{usedText}</span> of <span className="font-semibold text-slate-800 dark:text-white">{limitText}</span></span>
             <span>{limitVal > 0 ? `${percentage}%` : ""}</span>
           </div>
           {limitVal > 0 && (
-            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden border border-white/5 relative">
+            <div className="w-full h-2.5 bg-slate-200/60 dark:bg-black/30 rounded-full overflow-hidden border border-slate-300/40 dark:border-white/5 relative shadow-inner">
               <div
                 className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500"
                 style={{ width: `${percentage}%` }}
@@ -96,25 +97,26 @@ export function Header({
 
       <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
         {accounts.length > 0 && (
-          <select
+          <CustomDropdown
+            options={[
+              { value: "all", label: "All Drives", icon: "🌐" },
+              ...accounts.map((acc) => ({
+                value: acc.email,
+                label: acc.email,
+                icon: "📧",
+              })),
+            ]}
             value={activeDrive}
-            onChange={(e) => onActiveDriveChange?.(e.target.value)}
-            className="bg-white/10 text-white border border-white/10 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all hover:bg-white/15 outline-none max-w-[180px] truncate"
-          >
-            <option value="all" className="bg-slate-900 text-white font-medium">🌐 All Drives</option>
-            {accounts.map((acc) => (
-              <option key={acc.email} value={acc.email} className="bg-slate-900 text-white">
-                📧 {acc.email}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => onActiveDriveChange?.(val)}
+            className="max-w-[180px] min-w-[140px] py-1.5"
+          />
         )}
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <UserButton
             appearance={{
               elements: {
-                avatarBox: "w-10 h-10 ring-2 ring-white/20",
+                avatarBox: "w-10 h-10 ring-2 ring-indigo-500/20 dark:ring-white/10",
               },
             }}
           />

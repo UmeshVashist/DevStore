@@ -6,6 +6,7 @@ import { Upload, FileUp, FolderUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DriveFolder } from "@/lib/file-types";
 import { FolderSelector } from "./FolderSelector";
+import { CustomDropdown } from "./CustomDropdown";
 
 interface FileUploaderProps {
   folders: DriveFolder[];
@@ -180,11 +181,11 @@ export function FileUploader({
           />
         </div>
         <div className="w-full md:w-64">
-          <label className="block text-white/70 text-sm mb-2 font-medium">
+          <label className="block text-slate-600 dark:text-slate-400 text-sm mb-2 font-bold">
             Upload Target Drive:
           </label>
           {selectedFolder !== "root" ? (
-            <div className="glass-input w-full px-4 py-2.5 text-indigo-300 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold truncate flex items-center gap-1.5 cursor-not-allowed">
+            <div className="glass-neo-in w-full px-4 py-2 text-indigo-600 dark:text-indigo-300 rounded-xl text-sm font-bold truncate flex items-center gap-1.5 cursor-not-allowed border border-indigo-500/10">
               <span>☁️</span>
               <span className="truncate">
                 {(() => {
@@ -194,25 +195,21 @@ export function FileUploader({
                   return driveAcc?.name || folderEmail || "Unknown Drive";
                 })()}
               </span>
-              <span className="text-[10px] text-white/40 font-normal shrink-0">(Fixed by folder)</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal shrink-0">(Fixed by folder)</span>
             </div>
           ) : (
-            <select
+            <CustomDropdown
+              options={[
+                ...(activeDriveEmail === "all" ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }] : []),
+                ...(accounts || []).map((acc) => ({
+                  value: acc.email,
+                  label: acc.name || acc.email,
+                  icon: "📧",
+                })),
+              ]}
               value={uploadDrive}
-              onChange={(e) => setUploadDrive(e.target.value)}
-              className="glass-input w-full px-4 py-2.5 text-white bg-[#15132b] border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all hover:bg-white/5 outline-none"
-            >
-              {activeDriveEmail === "all" && (
-                <option value="auto" className="bg-[#15132b] text-white font-medium">
-                  ⚡ Auto (Most Free Space)
-                </option>
-              )}
-              {accounts?.map((acc) => (
-                <option key={acc.email} value={acc.email} className="bg-[#15132b] text-white">
-                  📧 {acc.name || acc.email}
-                </option>
-              ))}
-            </select>
+              onChange={setUploadDrive}
+            />
           )}
         </div>
       </div>
@@ -227,8 +224,10 @@ export function FileUploader({
           onDragLeave={() => setDragOverFiles(false)}
           onDrop={handleDropFiles}
           className={cn(
-            "glass-card block p-8 cursor-pointer text-center transition-all duration-300 relative overflow-hidden",
-            dragOverFiles && "ring-2 ring-indigo-400 scale-[1.02]",
+            "block p-8 cursor-pointer text-center transition-all duration-300 relative overflow-hidden rounded-2xl border",
+            dragOverFiles 
+              ? "glass-neo-in border-indigo-500/50 scale-[1.01]" 
+              : "glass-neo-out hover:shadow-neumorph-out border-slate-200/40 dark:border-white/5",
             isUploadingAny && "pointer-events-none opacity-70"
           )}
         >
@@ -249,14 +248,14 @@ export function FileUploader({
                 exit={{ opacity: 0 }}
                 className="flex flex-col items-center gap-3 py-6"
               >
-                <Loader2 className="w-12 h-12 text-indigo-400 animate-spin" />
+                <Loader2 className="w-12 h-12 text-indigo-500 dark:text-indigo-400 animate-spin" />
                 <div className="flex flex-col items-center gap-1.5">
-                  <p className="text-white/80 font-medium">
+                  <p className="text-slate-800 dark:text-slate-200 font-semibold">
                     {uploadProgress === 100 ? "Finishing..." : `Uploading Files... (${uploadProgress}%)`}
                   </p>
-                  <div className="w-48 h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+                  <div className="w-48 h-2 bg-slate-200/60 dark:bg-black/30 rounded-full overflow-hidden border border-slate-300/30 dark:border-white/5 shadow-inner mt-1">
                     <motion.div
-                      className="h-full bg-gradient-to-r from-indigo-400 to-purple-400"
+                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-500"
                       initial={{ width: 0 }}
                       animate={{ width: `${uploadProgress}%` }}
                       transition={{ duration: 0.1 }}
@@ -275,21 +274,21 @@ export function FileUploader({
                 <motion.div
                   animate={{ y: [0, -6, 0] }}
                   transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                  className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center border border-white/20"
+                  className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center border border-indigo-500/20 shadow-sm"
                 >
-                  <FileUp className="w-8 h-8 text-indigo-300" />
+                  <FileUp className="w-8 h-8 text-indigo-600 dark:text-indigo-300" />
                 </motion.div>
                 <div>
-                  <p className="text-white font-semibold text-lg">
+                  <p className="text-slate-800 dark:text-slate-200 font-bold text-lg">
                     Drop files here or click to upload
                   </p>
-                  <p className="text-white/50 text-sm mt-1">
+                  <p className="text-slate-400 dark:text-slate-500 text-sm mt-1 font-medium">
                     Select multiple files to upload
                   </p>
                 </div>
                 <div className="flex items-center gap-2 mt-2 justify-center">
-                  <Upload className="w-4 h-4 text-white/40" />
-                  <span className="text-xs text-white/40">
+                  <Upload className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                  <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
                     {selectedFolder === "root"
                       ? "Uploading to root (Without Folder)"
                       : `Uploading to selected folder`}
@@ -309,8 +308,10 @@ export function FileUploader({
           onDragLeave={() => setDragOverFolder(false)}
           onDrop={handleDropFolder}
           className={cn(
-            "glass-card block p-8 cursor-pointer text-center transition-all duration-300 relative overflow-hidden",
-            dragOverFolder && "ring-2 ring-purple-400 scale-[1.02]",
+            "block p-8 cursor-pointer text-center transition-all duration-300 relative overflow-hidden rounded-2xl border",
+            dragOverFolder 
+              ? "glass-neo-in border-purple-500/50 scale-[1.01]" 
+              : "glass-neo-out hover:shadow-neumorph-out border-slate-200/40 dark:border-white/5",
             isUploadingAny && "pointer-events-none opacity-70"
           )}
         >
@@ -332,14 +333,14 @@ export function FileUploader({
                 exit={{ opacity: 0 }}
                 className="flex flex-col items-center gap-3 py-6"
               >
-                <Loader2 className="w-12 h-12 text-purple-400 animate-spin" />
+                <Loader2 className="w-12 h-12 text-purple-500 dark:text-purple-400 animate-spin" />
                 <div className="flex flex-col items-center gap-1.5">
-                  <p className="text-white/80 font-medium">
+                  <p className="text-slate-800 dark:text-slate-200 font-semibold">
                     {uploadProgress === 100 ? "Finishing..." : `Uploading Folder... (${uploadProgress}%)`}
                   </p>
-                  <div className="w-48 h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+                  <div className="w-48 h-2 bg-slate-200/60 dark:bg-black/30 rounded-full overflow-hidden border border-slate-300/30 dark:border-white/5 shadow-inner mt-1">
                     <motion.div
-                      className="h-full bg-gradient-to-r from-purple-400 to-pink-400"
+                      className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
                       initial={{ width: 0 }}
                       animate={{ width: `${uploadProgress}%` }}
                       transition={{ duration: 0.1 }}
@@ -358,21 +359,21 @@ export function FileUploader({
                 <motion.div
                   animate={{ y: [0, -6, 0] }}
                   transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-                  className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center border border-white/20"
+                  className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 flex items-center justify-center border border-purple-500/20 shadow-sm"
                 >
-                  <FolderUp className="w-8 h-8 text-purple-300" />
+                  <FolderUp className="w-8 h-8 text-purple-600 dark:text-purple-300" />
                 </motion.div>
                 <div>
-                  <p className="text-white font-semibold text-lg">
+                  <p className="text-slate-800 dark:text-slate-200 font-bold text-lg">
                     Drop folder here or click to upload
                   </p>
-                  <p className="text-white/50 text-sm mt-1">
+                  <p className="text-slate-400 dark:text-slate-500 text-sm mt-1 font-medium">
                     Recursive upload (keeps directory structure)
                   </p>
                 </div>
                 <div className="flex items-center gap-2 mt-2 justify-center">
-                  <Upload className="w-4 h-4 text-white/40" />
-                  <span className="text-xs text-white/40">
+                  <Upload className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                  <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
                     {selectedFolder === "root"
                       ? "Uploading to root (Without Folder)"
                       : `Uploading to selected folder`}

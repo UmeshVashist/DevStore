@@ -2,15 +2,39 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+:root {
+  --shadow-neo-out: 8px 8px 16px rgba(185, 172, 154, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.95);
+  --shadow-neo-in: inset 6px 6px 12px rgba(185, 172, 154, 0.45), inset -6px -6px 12px rgba(255, 255, 255, 0.95);
+  --shadow-neo-btn: 4px 4px 8px rgba(185, 172, 154, 0.35), -4px -4px 8px rgba(255, 255, 255, 0.95);
+  --shadow-neo-btn-active: inset 3px 3px 6px rgba(185, 172, 154, 0.4), inset -3px -3px 6px rgba(255, 255, 255, 0.95);
+  --glass-bg: rgba(255, 253, 250, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --glass-text: #2c241e;
+}
+
+.dark, html.dark {
+  --shadow-neo-out: 9px 9px 20px rgba(0, 0, 0, 0.45), -9px -9px 20px rgba(255, 255, 255, 0.03);
+  --shadow-neo-in: inset 8px 8px 16px rgba(0, 0, 0, 0.5), inset -8px -8px 16px rgba(255, 255, 255, 0.03);
+  --shadow-neo-btn: 5px 5px 12px rgba(0, 0, 0, 0.35), -5px -5px 12px rgba(255, 255, 255, 0.02);
+  --shadow-neo-btn-active: inset 4px 4px 8px rgba(0, 0, 0, 0.5), inset -4px -4px 8px rgba(255, 255, 255, 0.03);
+  --glass-bg: rgba(20, 16, 42, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-text: #f8fafc;
+}
+
 @theme inline {
-  --color-glass: rgb(255 255 255 / 0.08);
-  --color-glass-border: rgb(255 255 255 / 0.15);
-  --color-glass-dark: rgb(0 0 0 / 0.25);
-  --color-glass-border-dark: rgb(255 255 255 / 0.08);
+  --color-glass: var(--glass-bg);
+  --color-glass-border: var(--glass-border);
+  --color-glass-dark: rgba(0, 0, 0, 0.35);
+  --color-glass-border-dark: rgba(255, 255, 255, 0.08);
   --color-accent: #6366f1;
   --color-accent-hover: #818cf8;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --shadow-neumorph-out: var(--shadow-neo-out);
+  --shadow-neumorph-in: var(--shadow-neo-in);
+  --shadow-neumorph-btn: var(--shadow-neo-btn);
+  --shadow-neumorph-btn-active: var(--shadow-neo-btn-active);
 }
 
 * {
@@ -33,14 +57,85 @@ html {
 body {
   min-height: 100vh;
   font-family: var(--font-sans), system-ui, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background: #FAEBD7;
   background-attachment: fixed;
   transition: background 0.5s ease;
 }
 
 .dark body,
 html.dark body {
-  background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+  background: linear-gradient(135deg, #0f0c20 0%, #15102a 50%, #0c0919 100%);
+}
+
+.glass-neo-out {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-neo-out);
+  border-radius: 1.25rem;
+  color: var(--glass-text);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-neo-in {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-neo-in);
+  border-radius: 1.25rem;
+  color: var(--glass-text);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-neo-btn {
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-neo-btn);
+  border-radius: 0.75rem;
+  font-weight: 500;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--glass-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.glass-neo-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: var(--shadow-neo-out);
+}
+
+.dark .glass-neo-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.glass-neo-btn:active, .glass-neo-btn.active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-neo-btn-active);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.glass-neo-input {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-neo-btn-active);
+  border-radius: 0.75rem;
+  color: var(--glass-text);
+  transition: all 0.2s ease;
+  padding: 0.625rem 1rem;
+}
+
+.glass-neo-input:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: var(--shadow-neo-in), 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
 .glass {

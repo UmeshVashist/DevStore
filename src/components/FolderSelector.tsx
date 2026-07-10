@@ -94,35 +94,34 @@ export function FolderSelector({ folders, value, onChange, label }: FolderSelect
   return (
     <div>
       {label && (
-        <label className="block text-white/70 text-sm mb-2 font-medium">{label}</label>
+        <label className="block text-slate-600 dark:text-slate-400 text-sm mb-2 font-bold">{label}</label>
       )}
-      <div className="relative z-30" ref={containerRef}>
+      <div className="relative z-50" ref={containerRef}>
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="glass-input w-full pl-10 pr-10 py-2.5 text-white flex items-center justify-between cursor-pointer text-left focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+          className="glass-neo-btn w-full pl-10 pr-10 py-2.5 text-slate-800 dark:text-white flex items-center justify-between cursor-pointer text-left focus:outline-none border border-slate-200/50 dark:border-white/10 rounded-xl"
         >
-          <FolderOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
-          <span className="truncate">
+          <FolderOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
+          <span className="truncate font-semibold">
             {value === "root" ? "Without Folder (Root)" : (folderMap.has(value) ? getFolderPath(value) : "Select Folder")}
           </span>
-          <ChevronDown className={`w-4 h-4 text-white/40 absolute right-3 top-1/2 -translate-y-1/2 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-4 h-4 text-slate-400 dark:text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
         </button>
 
         {isOpen && (
           <div
-            className="absolute left-0 right-0 mt-1.5 z-50 rounded-xl border border-white/10 overflow-hidden shadow-2xl"
-            style={{ backgroundColor: "#15132b" }}
+            className="absolute left-0 right-0 mt-1.5 z-50 rounded-xl overflow-hidden glass-neo-out border border-slate-200/50 dark:border-white/10 shadow-2xl bg-[#fdfbf7]/95 dark:bg-[#15112e]/95 backdrop-blur-xl"
           >
-            <div className="relative border-b border-white/10">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+            <div className="relative border-b border-slate-200/40 dark:border-white/10">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
               <input
                 type="text"
                 placeholder="Search folders..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="w-full bg-transparent pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-white/40 focus:outline-none"
+                className="w-full bg-transparent pl-10 pr-4 py-2.5 text-sm text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
                 autoFocus
               />
             </div>
@@ -140,10 +139,10 @@ export function FolderSelector({ folders, value, onChange, label }: FolderSelect
                     }}
                     className={`px-4 py-2.5 text-sm cursor-pointer transition-colors ${
                       isSelected
-                        ? "bg-indigo-600/30 text-white font-medium"
+                        ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 font-bold border-l-2 border-indigo-500"
                         : isFocused
-                        ? "bg-white/10 text-white font-medium"
-                        : "text-white/70 hover:bg-white/5 hover:text-white"
+                        ? "bg-slate-200/60 dark:bg-white/10 text-slate-800 dark:text-white font-bold"
+                        : "text-slate-700 dark:text-slate-300 hover:bg-slate-200/40 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white"
                     }`}
                   >
                     {item.pathName}
@@ -151,7 +150,7 @@ export function FolderSelector({ folders, value, onChange, label }: FolderSelect
                 );
               })}
               {selectableItems.length === 0 && (
-                <div className="px-4 py-6 text-sm text-white/40 text-center">
+                <div className="px-4 py-6 text-sm text-slate-400 dark:text-slate-500 text-center font-medium">
                   No folders found
                 </div>
               )}

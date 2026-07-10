@@ -66,13 +66,13 @@ export function FileGrid({
   return (
     <div>
       <div className="relative mb-6">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
         <input
           type="text"
           placeholder="Search files and folders..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="glass-input w-full pl-11 pr-4 py-3 text-white placeholder:text-white/40"
+          className="glass-neo-input w-full pl-11 pr-4 py-2.5 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl outline-none border border-slate-200/50 dark:border-white/10 shadow-inner font-semibold"
         />
       </div>
 

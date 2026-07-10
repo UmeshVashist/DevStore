@@ -954,15 +954,15 @@ export function Dashboard() {
             <motion.div
               initial={{ opacity: 0, y: 50, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 glass rounded-xl border border-indigo-500/30 px-6 py-4 flex items-center gap-6 shadow-2xl min-w-[320px] max-w-lg"
+              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 glass-neo-out rounded-2xl border border-slate-200/50 dark:border-white/10 px-6 py-4 flex items-center gap-6 shadow-2xl min-w-[320px] max-w-lg"
             >
               <div className="flex items-center gap-3">
-                <span className="bg-indigo-500/20 text-indigo-300 text-xs px-2.5 py-1 rounded-full font-bold">
+                <span className="bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 text-xs px-2.5 py-1 rounded-full font-bold">
                   {selectedItems.length} Selected
                 </span>
                 <button
                   onClick={handleSelectAll}
-                  className="text-xs bg-white/10 hover:bg-white/20 text-white/95 px-2.5 py-1 rounded-lg transition-all border border-white/10 font-semibold"
+                  className="glass-neo-btn text-xs px-2.5 py-1.5 border border-slate-200/50 dark:border-white/10 rounded-lg text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white"
                 >
                   {selectedItems.length === (
                     activeTab === "files"
@@ -974,26 +974,26 @@ export function Dashboard() {
                 </button>
               </div>
               
-              <div className="h-6 w-px bg-white/10" />
+              <div className="h-6 w-px bg-slate-200 dark:bg-white/10 hidden sm:block" />
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-wrap justify-center">
                 {activeTab === "trash" ? (
                   <>
                     <button
                       onClick={() => handleMultiRestore(selectedItems)}
-                      className="p-2 rounded-lg hover:bg-green-500/20 text-green-400 hover:text-green-300 transition-all flex flex-col items-center gap-0.5"
+                      className="glass-neo-btn px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 border border-slate-200/50 dark:border-white/10 text-xs font-bold shadow-neumorph-btn"
                       title="Restore selected items"
                     >
-                      <RotateCcw className="w-5 h-5" />
-                      <span className="text-[10px] font-medium">Restore</span>
+                      <RotateCcw className="w-4 h-4" />
+                      <span>Restore</span>
                     </button>
                     <button
                       onClick={() => handleMultiDelete(selectedItems)}
-                      className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all flex flex-col items-center gap-0.5"
+                      className="glass-neo-btn px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border border-slate-200/50 dark:border-white/10 text-xs font-bold shadow-neumorph-btn"
                       title="Delete permanently"
                     >
-                      <Trash2 className="w-5 h-5" />
-                      <span className="text-[10px] font-medium">Delete Forever</span>
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete Forever</span>
                     </button>
                   </>
                 ) : (
@@ -1001,48 +1001,48 @@ export function Dashboard() {
                     {selectedItems.some(i => !isDriveFolder(i)) && (
                       <button
                         onClick={() => handleMultiDownload(selectedItems)}
-                        className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-all flex flex-col items-center gap-0.5"
+                        className="glass-neo-btn px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white border border-slate-200/50 dark:border-white/10 text-xs font-bold shadow-neumorph-btn"
                         title="Download selected files"
                       >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
-                        <span className="text-[10px] font-medium">Download</span>
+                        <span>Download</span>
                       </button>
                     )}
                     <button
                       onClick={() => handleMultiCopy(selectedItems)}
-                      className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-all flex flex-col items-center gap-0.5"
+                      className="glass-neo-btn px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white border border-slate-200/50 dark:border-white/10 text-xs font-bold shadow-neumorph-btn"
                       title="Copy selected items"
                     >
-                      <Copy className="w-5 h-5" />
-                      <span className="text-[10px] font-medium">Copy</span>
+                      <Copy className="w-4 h-4" />
+                      <span>Copy</span>
                     </button>
                     <button
                       onClick={() => handleMultiCut(selectedItems)}
-                      className="p-2 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-all flex flex-col items-center gap-0.5"
+                      className="glass-neo-btn px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white border border-slate-200/50 dark:border-white/10 text-xs font-bold shadow-neumorph-btn"
                       title="Cut selected items"
                     >
-                      <Scissors className="w-5 h-5" />
-                      <span className="text-[10px] font-medium">Cut</span>
+                      <Scissors className="w-4 h-4" />
+                      <span>Cut</span>
                     </button>
                     <button
                       onClick={() => handleMultiDelete(selectedItems)}
-                      className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all flex flex-col items-center gap-0.5"
+                      className="glass-neo-btn px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border border-slate-200/50 dark:border-white/10 text-xs font-bold shadow-neumorph-btn"
                       title="Delete selected items"
                     >
-                      <Trash2 className="w-5 h-5" />
-                      <span className="text-[10px] font-medium">Delete</span>
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete</span>
                     </button>
                   </>
                 )}
               </div>
 
-              <div className="h-6 w-px bg-white/10" />
+              <div className="h-6 w-px bg-slate-200 dark:bg-white/10 hidden sm:block" />
 
               <button
                 onClick={() => setSelectedIds(new Set())}
-                className="text-xs text-white/40 hover:text-white font-medium whitespace-nowrap"
+                className="glass-neo-btn text-xs px-3 py-1.5 border border-slate-200/50 dark:border-white/10 rounded-lg text-slate-500 hover:text-slate-700 dark:text-white/50 dark:hover:text-white font-bold shadow-neumorph-btn"
               >
                 Cancel
               </button>
@@ -1054,31 +1054,31 @@ export function Dashboard() {
           <motion.div
             initial={{ opacity: 0, y: 50, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="fixed bottom-6 left-6 z-40 glass rounded-xl border border-indigo-500/30 px-5 py-4 flex flex-col sm:flex-row items-center gap-4 shadow-2xl min-w-[280px]"
+            className="fixed bottom-6 left-6 z-40 glass-neo-out rounded-2xl border border-slate-200/50 dark:border-white/10 px-5 py-4 flex flex-col sm:flex-row items-center gap-4 shadow-2xl min-w-[280px]"
           >
             <div className="flex items-center gap-3 w-full sm:w-auto">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 text-indigo-300">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-500/20 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300">
                 {clipboard.type === "cut" ? <Scissors className="w-5 h-5 animate-pulse" /> : <Copy className="w-5 h-5" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-white/40 text-[10px] uppercase tracking-wider font-bold">
+                <p className="text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-wider font-bold">
                   Clipboard ({clipboard.type})
                 </p>
-                <p className="text-white font-medium text-sm truncate max-w-[180px]" title={clipboard.items.map(i => i.name).join(", ")}>
+                <p className="text-slate-800 dark:text-white font-bold text-sm truncate max-w-[180px]" title={clipboard.items.map(i => i.name).join(", ")}>
                   {clipboard.items.length === 1 ? clipboard.items[0].name : `${clipboard.items.length} items`}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end border-t sm:border-t-0 border-slate-200/40 dark:border-white/5 pt-2 sm:pt-0">
               <button
                 onClick={handlePaste}
-                className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1.5"
+                className="btn-primary py-2 px-4 text-xs font-bold rounded-xl shadow-neumorph-btn hover:shadow-neumorph-out transition-all text-white"
               >
                 Paste Here
               </button>
               <button
                 onClick={() => setClipboard(null)}
-                className="btn-ghost py-1.5 px-2 text-xs text-white/50 hover:text-white"
+                className="glass-neo-btn py-2 px-3 text-xs font-semibold rounded-xl border border-slate-200/50 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-white/10"
               >
                 Cancel
               </button>

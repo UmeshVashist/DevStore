@@ -12,7 +12,7 @@ export function ThemeToggle() {
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {
-    return <div className="w-10 h-10 rounded-xl glass" />;
+    return <div className="w-10 h-10 rounded-xl glass-neo-btn" />;
   }
 
   const isDark = theme === "dark";
@@ -22,7 +22,7 @@ export function ThemeToggle() {
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="relative w-10 h-10 rounded-xl glass flex items-center justify-center cursor-pointer overflow-hidden"
+      className="relative w-10 h-10 rounded-xl glass-neo-btn flex items-center justify-center cursor-pointer overflow-hidden border border-slate-200/50 dark:border-white/5"
       aria-label="Toggle theme"
     >
       <motion.div
