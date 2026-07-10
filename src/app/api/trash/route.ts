@@ -16,7 +16,9 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams.get("driveEmail") ||
       undefined;
 
-    await purgeExpiredTrash(userId, driveEmail);
+    purgeExpiredTrash(userId, driveEmail).catch((err) => {
+      console.error("Background trash purge error:", err);
+    });
     const items = await listTrashItems(userId, driveEmail);
 
     return NextResponse.json({ items, retentionDays: RETENTION_DAYS });

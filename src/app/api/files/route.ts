@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams.get("driveEmail") ||
       undefined;
 
-    await purgeExpiredTrash(userId, driveEmail);
+    purgeExpiredTrash(userId, driveEmail).catch((err) => {
+      console.error("Background trash purge error:", err);
+    });
     const folderId = request.nextUrl.searchParams.get("folderId") || undefined;
     const items = await listBrowseItems(userId, folderId, driveEmail);
 

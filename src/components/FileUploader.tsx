@@ -227,7 +227,7 @@ export function FileUploader({
             "block p-8 cursor-pointer text-center transition-all duration-300 relative overflow-hidden rounded-2xl border",
             dragOverFiles 
               ? "glass-neo-in border-indigo-500/50 scale-[1.01]" 
-              : "glass-neo-out hover:shadow-neumorph-out border-slate-200/40 dark:border-white/5",
+              : "glass-neo-out hover:shadow-neumorph-out hover:-translate-y-1.5 hover:shadow-xl border-slate-200/40 dark:border-white/5",
             isUploadingAny && "pointer-events-none opacity-70"
           )}
         >
@@ -311,7 +311,7 @@ export function FileUploader({
             "block p-8 cursor-pointer text-center transition-all duration-300 relative overflow-hidden rounded-2xl border",
             dragOverFolder 
               ? "glass-neo-in border-purple-500/50 scale-[1.01]" 
-              : "glass-neo-out hover:shadow-neumorph-out border-slate-200/40 dark:border-white/5",
+              : "glass-neo-out hover:shadow-neumorph-out hover:-translate-y-1.5 hover:shadow-xl border-slate-200/40 dark:border-white/5",
             isUploadingAny && "pointer-events-none opacity-70"
           )}
         >

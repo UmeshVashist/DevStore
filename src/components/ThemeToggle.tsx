@@ -15,19 +15,19 @@ export function ThemeToggle() {
     return <div className="w-10 h-10 rounded-xl glass-neo-btn" />;
   }
 
-  const isDark = theme === "dark";
+  const isSkeuo = theme === "skeuo";
 
   return (
     <motion.button
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
-      onClick={() => setTheme(isDark ? "light" : "dark")}
+      onClick={() => setTheme(isSkeuo ? "neo" : "skeuo")}
       className="relative w-10 h-10 rounded-xl glass-neo-btn flex items-center justify-center cursor-pointer overflow-hidden border border-slate-200/50 dark:border-white/5"
-      aria-label="Toggle theme"
+      aria-label="Toggle UI Style"
     >
       <motion.div
         initial={false}
-        animate={{ rotate: isDark ? 0 : 180, scale: isDark ? 1 : 0 }}
+        animate={{ rotate: isSkeuo ? 0 : 180, scale: isSkeuo ? 1 : 0 }}
         transition={{ duration: 0.3 }}
         className="absolute"
       >
@@ -35,7 +35,7 @@ export function ThemeToggle() {
       </motion.div>
       <motion.div
         initial={false}
-        animate={{ rotate: isDark ? -180 : 0, scale: isDark ? 0 : 1 }}
+        animate={{ rotate: isSkeuo ? -180 : 0, scale: isSkeuo ? 0 : 1 }}
         transition={{ duration: 0.3 }}
         className="absolute"
       >

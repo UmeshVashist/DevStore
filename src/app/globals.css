@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.dark, .dark *, .skeuo, .skeuo *));
 
 :root {
   --shadow-neo-out: 8px 8px 16px rgba(185, 172, 154, 0.4), -8px -8px 16px rgba(255, 255, 255, 0.95);
@@ -12,13 +12,13 @@
   --glass-text: #2c241e;
 }
 
-.dark, html.dark {
-  --shadow-neo-out: 9px 9px 20px rgba(0, 0, 0, 0.45), -9px -9px 20px rgba(255, 255, 255, 0.03);
-  --shadow-neo-in: inset 8px 8px 16px rgba(0, 0, 0, 0.5), inset -8px -8px 16px rgba(255, 255, 255, 0.03);
-  --shadow-neo-btn: 5px 5px 12px rgba(0, 0, 0, 0.35), -5px -5px 12px rgba(255, 255, 255, 0.02);
-  --shadow-neo-btn-active: inset 4px 4px 8px rgba(0, 0, 0, 0.5), inset -4px -4px 8px rgba(255, 255, 255, 0.03);
-  --glass-bg: rgba(20, 16, 42, 0.5);
-  --glass-border: rgba(255, 255, 255, 0.06);
+.skeuo, html.skeuo {
+  --shadow-neo-out: 12px 12px 28px rgba(0, 0, 0, 0.65), -6px -6px 20px rgba(255, 255, 255, 0.01);
+  --shadow-neo-in: inset 6px 6px 14px rgba(0, 0, 0, 0.7), inset -6px -6px 14px rgba(255, 255, 255, 0.03);
+  --shadow-neo-btn: 6px 6px 14px rgba(0, 0, 0, 0.55), -4px -4px 10px rgba(255, 255, 255, 0.02);
+  --shadow-neo-btn-active: inset 4px 4px 10px rgba(0, 0, 0, 0.65), inset -4px -4px 10px rgba(255, 255, 255, 0.02);
+  --glass-bg: rgba(20, 16, 42, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.07);
   --glass-text: #f8fafc;
 }
 
@@ -62,9 +62,14 @@ body {
   transition: background 0.5s ease;
 }
 
-.dark body,
-html.dark body {
-  background: linear-gradient(135deg, #0f0c20 0%, #15102a 50%, #0c0919 100%);
+.skeuo body,
+html.skeuo body {
+  background: 
+    radial-gradient(circle at 50% 50%, #171239 0%, #0d0924 70%, #05030e 100%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.006) 0px, rgba(255, 255, 255, 0.006) 1px, transparent 1px, transparent 4px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.006) 0px, rgba(255, 255, 255, 0.006) 1px, transparent 1px, transparent 4px);
+  background-blend-mode: overlay;
+  background-attachment: fixed;
 }
 
 .glass-neo-out {
@@ -270,3 +275,148 @@ html.dark body {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
+
+/* ==========================================================================
+   Skeuomorphic tactile UI Overrides
+   ========================================================================== */
+
+/* 1. Containers and Cards */
+html.skeuo .glass-neo-out {
+  background: linear-gradient(145deg, rgba(30, 24, 69, 0.9) 0%, rgba(13, 9, 32, 0.96) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-top-color: rgba(255, 255, 255, 0.18);
+  border-left-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    12px 12px 28px rgba(0, 0, 0, 0.65), 
+    -6px -6px 20px rgba(255, 255, 255, 0.01),
+    /* glossy inset highlight bevel */
+    inset 1px 1px 1px rgba(255, 255, 255, 0.12),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.4);
+}
+
+html.skeuo .glass-neo-in {
+  background: rgba(10, 7, 24, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-top-color: rgba(0, 0, 0, 0.85);
+  border-left-color: rgba(0, 0, 0, 0.7);
+  box-shadow: 
+    inset 0 3px 6px rgba(0, 0, 0, 0.95),
+    inset 0 1px 2px rgba(0, 0, 0, 0.8),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* 2. Push Buttons (Standard Buttons) */
+html.skeuo .glass-neo-btn {
+  background: linear-gradient(180deg, rgba(50, 42, 95, 0.85) 0%, rgba(20, 16, 45, 0.98) 100%);
+  border: 1px solid rgba(0, 0, 0, 0.65);
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+html.skeuo .glass-neo-btn:hover {
+  background: linear-gradient(180deg, rgba(65, 55, 120, 0.95) 0%, rgba(26, 20, 58, 0.95) 100%);
+  box-shadow: 
+    0 6px 12px rgba(0, 0, 0, 0.6),
+    0 0 12px rgba(99, 102, 241, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transform: translateY(-1.5px);
+}
+
+html.skeuo .glass-neo-btn:active, html.skeuo .glass-neo-btn.active {
+  background: linear-gradient(180deg, rgba(16, 12, 38, 0.98) 0%, rgba(32, 26, 75, 0.92) 100%);
+  box-shadow: 
+    inset 0 4px 6px rgba(0, 0, 0, 0.85),
+    inset 0 0 4px rgba(0, 0, 0, 0.6);
+  transform: translateY(1.5px);
+}
+
+/* 3. Primary Action Buttons */
+html.skeuo .btn-primary {
+  background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  border-top: 1px solid rgba(255, 255, 255, 0.4);
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 
+    0 4px 10px rgba(79, 70, 229, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.3);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+html.skeuo .btn-primary:hover {
+  background: linear-gradient(180deg, #818cf8 0%, #4f46e5 100%);
+  box-shadow: 
+    0 6px 14px rgba(79, 70, 229, 0.6),
+    0 0 14px rgba(99, 102, 241, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transform: translateY(-1.5px);
+}
+
+html.skeuo .btn-primary:active {
+  background: linear-gradient(180deg, #3730a3 0%, #4338ca 100%);
+  box-shadow: 
+    inset 0 3px 6px rgba(0, 0, 0, 0.6);
+  transform: translateY(1.5px);
+}
+
+/* 4. Recessed Inputs */
+html.skeuo .glass-neo-input {
+  background: rgba(8, 5, 20, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(0, 0, 0, 0.85);
+  border-left: 1px solid rgba(0, 0, 0, 0.7);
+  box-shadow: 
+    inset 0 3px 6px rgba(0, 0, 0, 0.95),
+    inset 0 1px 2px rgba(0, 0, 0, 0.8),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+html.skeuo .glass-neo-input:focus {
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 
+    inset 0 3px 6px rgba(0, 0, 0, 0.95),
+    0 0 12px rgba(99, 102, 241, 0.4);
+}
+
+/* 5. Dropdowns and Floating Lists */
+html.skeuo .glass-neo-out.bg-\[\#fdfbf7\]\/95 {
+  background: linear-gradient(145deg, rgba(20, 16, 45, 0.98) 0%, rgba(10, 7, 25, 0.99) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-top-color: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 
+    0 16px 36px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+html.skeuo .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+html.skeuo .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+html.skeuo .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.skeuo .bg-slate-200\/40 {
+  background-color: rgba(0, 0, 0, 0.35) !important;
+}
+
+html.skeuo .bg-\[\#fdfbf7\]\/40 {
+  background: linear-gradient(145deg, rgba(30, 24, 69, 0.9) 0%, rgba(13, 9, 32, 0.96) 100%) !important;
+}
+
+html.skeuo .border-slate-200\/50 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+

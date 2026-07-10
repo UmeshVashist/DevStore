@@ -25,7 +25,7 @@ interface FileCountsCache {
   timestamp: number;
 }
 let fileCountsCache: FileCountsCache | null = null;
-const COUNTS_CACHE_TTL = 30 * 1000; // 30 seconds
+const COUNTS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 const ancestorRelationCache = new Map<string, { result: boolean; timestamp: number }>();
 const RELATION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -279,8 +279,15 @@ async function getFolderFileCounts(
     return { ...fileCountsCache.counts };
   }
 
-  if (folderIds && folderIds.length > 0 && folderIds.length <= 8) {
-    const counts: Record<string, number> = {};
+  // If folderIds is not specified (which happens during listAllUserFolders), 
+  // do NOT query the entire drive recursively. It can take minutes and causes massive lags.
+  if (!folderIds || folderIds.length === 0) {
+    return fileCountsCache ? { ...fileCountsCache.counts } : {};
+  }
+
+  // Fast path: fetch counts only for the requested folders in parallel
+  const counts: Record<string, number> = {};
+  try {
     await Promise.all(
       folderIds.map(async (id) => {
         try {
@@ -302,47 +309,10 @@ async function getFolderFileCounts(
       fileCountsCache = { counts: {}, timestamp: now };
     }
     Object.assign(fileCountsCache.counts, counts);
-    
-    return counts;
-  }
-
-  const counts: Record<string, number> = {};
-  try {
-    let pageToken: string | undefined = undefined;
-    do {
-      const params: drive_v3.Params$Resource$Files$List = {
-        ...DRIVE_LIST_OPTS,
-        q: `mimeType != '${FOLDER_MIME}' and trashed=false`,
-        fields: "nextPageToken,files(parents)",
-        pageSize: 1000,
-        pageToken,
-      };
-      const res = await drive.files.list(params);
-      for (const file of res.data.files || []) {
-        const parentId = file.parents?.[0];
-        if (parentId) {
-          counts[parentId] = (counts[parentId] || 0) + 1;
-        }
-      }
-      pageToken = res.data.nextPageToken || undefined;
-    } while (pageToken);
-    
-    fileCountsCache = {
-      counts,
-      timestamp: now,
-    };
   } catch (err) {
-    console.error("Error fetching file counts:", err);
+    console.error("Error setting folder file counts:", err);
   }
 
-  if (folderIds) {
-    const result: Record<string, number> = {};
-    for (const id of folderIds) {
-      result[id] = counts[id] || 0;
-    }
-    return result;
-  }
-  
   return counts;
 }
 
