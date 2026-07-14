@@ -44,44 +44,41 @@ export function getStoredAccounts(userId?: string): GoogleOAuthStore[] {
     if (cached.length > 0) {
       return cached;
     }
-  } else if (!resolvedUserId && accountsCache.size > 0) {
-    const firstCached = Array.from(accountsCache.values())[0];
-    if (firstCached.length > 0) {
-      return firstCached;
-    }
   }
 
   // 2. Fallback to local .google-oauth.json file (useful for scripts & local development)
-  try {
-    if (fs.existsSync(TOKEN_FILE)) {
-      const content = fs.readFileSync(TOKEN_FILE, "utf-8").trim();
-      if (!content) return [];
-      const parsed = JSON.parse(content);
-      let fileAccounts: GoogleOAuthStore[] = [];
-      
-      // Support old single-account format
-      if (parsed.refresh_token) {
-        fileAccounts = [{
-          refresh_token: parsed.refresh_token,
-          email: parsed.email,
-          name: parsed.name,
-          connected_at: parsed.connected_at || new Date().toISOString()
-        }];
-      } else if (Array.isArray(parsed)) { // Support array directly
-        fileAccounts = parsed;
-      } else if (parsed && Array.isArray(parsed.accounts)) { // Support new format: { accounts: [...] }
-        fileAccounts = parsed.accounts;
-      }
-
-      if (fileAccounts.length > 0) {
-        if (resolvedUserId) {
-          accountsCache.set(resolvedUserId, fileAccounts);
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      if (fs.existsSync(TOKEN_FILE)) {
+        const content = fs.readFileSync(TOKEN_FILE, "utf-8").trim();
+        if (!content) return [];
+        const parsed = JSON.parse(content);
+        let fileAccounts: GoogleOAuthStore[] = [];
+        
+        // Support old single-account format
+        if (parsed.refresh_token) {
+          fileAccounts = [{
+            refresh_token: parsed.refresh_token,
+            email: parsed.email,
+            name: parsed.name,
+            connected_at: parsed.connected_at || new Date().toISOString()
+          }];
+        } else if (Array.isArray(parsed)) { // Support array directly
+          fileAccounts = parsed;
+        } else if (parsed && Array.isArray(parsed.accounts)) { // Support new format: { accounts: [...] }
+          fileAccounts = parsed.accounts;
         }
-        return fileAccounts;
+
+        if (fileAccounts.length > 0) {
+          if (resolvedUserId) {
+            accountsCache.set(resolvedUserId, fileAccounts);
+          }
+          return fileAccounts;
+        }
       }
+    } catch (err) {
+      console.error("Error reading stored accounts file:", err);
     }
-  } catch (err) {
-    console.error("Error reading stored accounts file:", err);
   }
   return [];
 }

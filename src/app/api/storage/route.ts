@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageQuota } from "@/lib/google-drive";
+import { fetchAndCacheAccounts } from "@/lib/google-oauth-store";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,8 @@ export async function GET(request: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await fetchAndCacheAccounts(userId);
 
     const driveEmail =
       request.headers.get("x-drive-email") ||

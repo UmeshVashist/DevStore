@@ -9,6 +9,7 @@ import {
   purgeExpiredTrash,
 } from "@/lib/google-drive";
 import { formatDriveError } from "@/lib/google-auth";
+import { fetchAndCacheAccounts } from "@/lib/google-oauth-store";
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +17,8 @@ export async function GET(request: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await fetchAndCacheAccounts(userId);
 
     const driveEmail =
       request.headers.get("x-drive-email") ||
@@ -41,6 +44,8 @@ export async function POST(request: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await fetchAndCacheAccounts(userId);
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;

@@ -11,6 +11,7 @@ import {
   listTrashItems,
   renameItem,
 } from "@/lib/google-drive";
+import { fetchAndCacheAccounts } from "@/lib/google-oauth-store";
 
 type RouteParams = { params: Promise<{ fileId: string }> };
 
@@ -20,6 +21,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await fetchAndCacheAccounts(userId);
 
     const driveEmail =
       request.headers.get("x-drive-email") ||
@@ -70,6 +73,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    await fetchAndCacheAccounts(userId);
+
     const driveEmail =
       request.headers.get("x-drive-email") ||
       request.nextUrl.searchParams.get("driveEmail") ||
@@ -114,6 +119,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await fetchAndCacheAccounts(userId);
 
     const driveEmail =
       request.headers.get("x-drive-email") ||

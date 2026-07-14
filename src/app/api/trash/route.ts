@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { listTrashItems, purgeExpiredTrash } from "@/lib/google-drive";
 import { formatDriveError } from "@/lib/google-auth";
 import { RETENTION_DAYS } from "@/lib/constants";
+import { fetchAndCacheAccounts } from "@/lib/google-oauth-store";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,6 +11,8 @@ export async function GET(request: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await fetchAndCacheAccounts(userId);
 
     const driveEmail =
       request.headers.get("x-drive-email") ||

@@ -95,15 +95,15 @@ export function clearGoogleAuthCache(): void {
   cachedDrives.clear();
 }
 
-export function getGoogleAuth(driveEmail?: string): Auth.OAuth2Client | Auth.JWT {
-  const cacheKey = driveEmail || "default";
+export function getGoogleAuth(driveEmail?: string, userId?: string): Auth.OAuth2Client | Auth.JWT {
+  const cacheKey = `${driveEmail || "default"}-${userId || "default"}`;
   if (cachedAuths.has(cacheKey)) {
     return cachedAuths.get(cacheKey)!;
   }
 
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const refreshToken = getStoredRefreshToken(driveEmail);
+  const refreshToken = getStoredRefreshToken(driveEmail, userId);
 
   if (clientId && clientSecret && refreshToken) {
     const oauth2 = new google.auth.OAuth2(
@@ -142,12 +142,12 @@ export const DRIVE_LIST_OPTS = {
   includeItemsFromAllDrives: true,
 };
 
-export function getDriveClient(driveEmail?: string): drive_v3.Drive {
-  const cacheKey = driveEmail || "default";
+export function getDriveClient(driveEmail?: string, userId?: string): drive_v3.Drive {
+  const cacheKey = `${driveEmail || "default"}-${userId || "default"}`;
   if (cachedDrives.has(cacheKey)) {
     return cachedDrives.get(cacheKey)!;
   }
-  const drive = google.drive({ version: "v3", auth: getGoogleAuth(driveEmail) });
+  const drive = google.drive({ version: "v3", auth: getGoogleAuth(driveEmail, userId) });
   cachedDrives.set(cacheKey, drive);
   return drive;
 }

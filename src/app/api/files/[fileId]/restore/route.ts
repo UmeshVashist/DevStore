@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { restoreFile, restoreFolder, verifyUserOwnsFile } from "@/lib/google-drive";
 import { getDriveClient, DRIVE_OPTS } from "@/lib/google-auth";
+import { fetchAndCacheAccounts } from "@/lib/google-oauth-store";
 import { FOLDER_MIME } from "@/lib/file-types";
 
 type RouteParams = { params: Promise<{ fileId: string }> };
@@ -13,6 +14,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    await fetchAndCacheAccounts(userId);
+
     const driveEmail =
       request.headers.get("x-drive-email") ||
       request.nextUrl.searchParams.get("driveEmail") ||
@@ -20,7 +23,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const { fileId } = await params;
 
-    const drive = getDriveClient(driveEmail);
+    const drive = getDriveClient(driveEmail, userId);
     let isFolder = false;
     try {
       const meta = await drive.files.get({ ...DRIVE_OPTS, fileId, fields: "mimeType" });
