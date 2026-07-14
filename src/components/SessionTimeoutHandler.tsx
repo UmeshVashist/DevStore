@@ -58,20 +58,7 @@ export function SessionTimeoutHandler() {
     };
   }, [isSignedIn, signOut]);
 
-  // 3. Best-effort unload logout
-  useEffect(() => {
-    if (!isSignedIn) return;
 
-    const handleUnload = () => {
-      sessionStorage.removeItem("sessionActive");
-      signOut();
-    };
-
-    window.addEventListener("beforeunload", handleUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleUnload);
-    };
-  }, [isSignedIn, signOut]);
 
   return null;
 }

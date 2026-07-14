@@ -17,7 +17,9 @@ export function FilePreviewModal({ file, onClose, onDownload }: FilePreviewModal
   if (!file) return null;
 
   const previewType = getPreviewType(file.category, file.mimeType);
-  const previewUrl = `/api/files/${file.id}?preview=true`;
+  const previewUrl = `/api/files/${file.id}?preview=true${
+    file.driveEmail ? `&driveEmail=${encodeURIComponent(file.driveEmail)}` : ""
+  }`;
 
   return (
     <AnimatePresence>
@@ -74,13 +76,16 @@ export function FilePreviewModal({ file, onClose, onDownload }: FilePreviewModal
             )}
 
             {previewType === "image" && (
-              <div className="flex items-center justify-center">
+              <div className="flex flex-col items-center justify-center gap-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={previewUrl}
                   alt={file.name}
-                  className="max-w-full max-h-[70vh] rounded-xl object-contain"
+                  className="max-w-full max-h-[65vh] rounded-xl object-contain"
                 />
+                <p className="text-xs text-indigo-400 dark:text-indigo-300 font-semibold tracking-wide mt-1">
+                  🛡️ Preview is scaled to fit. Downloaded file is 100% original (uncompressed, byte-for-byte same).
+                </p>
               </div>
             )}
 

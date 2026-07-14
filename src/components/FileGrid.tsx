@@ -58,7 +58,7 @@ export function FileGrid({
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <Loader2 className="w-10 h-10 text-indigo-400 animate-spin" />
-        <p className="text-white/60">Loading from Google Drive...</p>
+        <p className="text-slate-600 dark:text-white/60 font-semibold">Loading from Google Drive...</p>
       </div>
     );
   }
@@ -83,11 +83,11 @@ export function FileGrid({
           className="glass-card p-12 text-center"
         >
           {isTrash ? (
-            <Trash2 className="w-12 h-12 text-white/30 mx-auto mb-4" />
+            <Trash2 className="w-12 h-12 text-slate-400 dark:text-white/30 mx-auto mb-4" />
           ) : (
-            <FolderOpen className="w-12 h-12 text-white/30 mx-auto mb-4" />
+            <FolderOpen className="w-12 h-12 text-slate-400 dark:text-white/30 mx-auto mb-4" />
           )}
-          <p className="text-white/50">{search ? "No matching items found" : emptyMessage}</p>
+          <p className="text-slate-500 dark:text-white/50 font-semibold">{search ? "No matching items found" : emptyMessage}</p>
         </motion.div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
