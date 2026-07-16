@@ -11,7 +11,7 @@ interface FileGridProps {
   items: DriveItem[];
   loading: boolean;
   onPreview: (file: DriveFile) => void;
-  onDownload: (file: DriveFile) => void;
+  onDownload: (item: DriveItem) => void;
   onDelete: (item: DriveItem) => void;
   onRestore?: (item: DriveItem) => void;
   onOpenFolder?: (folder: DriveFolder) => void;
@@ -99,6 +99,7 @@ export function FileGrid({
                 onOpen={onOpenFolder || (() => {})}
                 onDelete={isTrash ? undefined : () => onDelete(item)}
                 onRestore={onRestore ? () => onRestore(item) : undefined}
+                onDownload={onDownload}
                 onCopy={onCopy ? () => onCopy(item) : undefined}
                 onCut={onCut ? () => onCut(item) : undefined}
                 onRename={onRename ? () => onRename(item) : undefined}

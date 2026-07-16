@@ -15,7 +15,7 @@ export function GoogleDriveBanner() {
   }>({ connected: false, hasClientCredentials: false, loading: true });
 
   useEffect(() => {
-    fetch("/api/drive/status")
+    fetch(`/api/drive/status?t=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) =>
         setStatus({
@@ -80,7 +80,7 @@ function SetupContent() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/drive/status")
+    fetch(`/api/drive/status?t=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) =>
         setStatus({

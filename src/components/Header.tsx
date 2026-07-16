@@ -33,11 +33,12 @@ export function Header({
   useEffect(() => {
     async function fetchQuota() {
       try {
-        const url =
+        const baseUrl =
           activeDrive && activeDrive !== "all"
             ? `/api/storage?driveEmail=${encodeURIComponent(activeDrive)}`
             : "/api/storage?driveEmail=all";
-        const res = await fetch(url);
+        const url = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+        const res = await fetch(url, { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           setQuota(data.quota);

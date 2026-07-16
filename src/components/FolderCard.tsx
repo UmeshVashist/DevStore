@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { DriveFolder } from "@/lib/file-types";
-import { Folder, RotateCcw, Trash2, Clock, MoreVertical, Scissors, Copy, FolderOpen, Edit2 } from "lucide-react";
+import { Folder, RotateCcw, Trash2, Clock, MoreVertical, Scissors, Copy, FolderOpen, Edit2, Download } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { formatDate, daysUntilPermanentDelete } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -12,6 +12,7 @@ interface FolderCardProps {
   onOpen: (folder: DriveFolder) => void;
   onDelete?: (folder: DriveFolder) => void;
   onRestore?: (folder: DriveFolder) => void;
+  onDownload?: (folder: DriveFolder) => void;
   onCopy?: () => void;
   onCut?: () => void;
   onRename?: () => void;
@@ -31,6 +32,7 @@ export function FolderCard({
   onOpen,
   onDelete,
   onRestore,
+  onDownload,
   onCopy,
   onCut,
   onRename,
@@ -148,6 +150,16 @@ export function FolderCard({
                     setMenuOpen(false);
                   }}
                 />
+                {onDownload && (
+                  <ActionButton
+                    icon={Download}
+                    label="Download"
+                    onClick={() => {
+                      onDownload(folder);
+                      setMenuOpen(false);
+                    }}
+                  />
+                )}
                 {onCut && (
                   <ActionButton
                     icon={Scissors}
@@ -195,18 +207,49 @@ export function FolderCard({
         </div>
       </div>
       {!anySelected && (
-        <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-200/30 dark:border-white/10">
+        <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-slate-200/30 dark:border-white/10">
           {isTrash && onRestore ? (
-            <button
+            <QuickButton
+              icon={RotateCcw}
+              label="Restore"
               onClick={(e) => {
                 e.stopPropagation();
                 onRestore(folder);
               }}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/20 transition-all border border-indigo-500/20"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Restore
-            </button>
+              primary
+            />
+          ) : !isTrash ? (
+            <div className="flex gap-2">
+              <QuickButton
+                icon={FolderOpen}
+                label="Open"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpen(folder);
+                }}
+              />
+              {onDownload && (
+                <QuickButton
+                  icon={Download}
+                  label="Download"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDownload(folder);
+                  }}
+                />
+              )}
+              {onDelete && (
+                <QuickButton
+                  icon={Trash2}
+                  label="Delete"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(folder);
+                  }}
+                  danger
+                />
+              )}
+            </div>
           ) : (
             <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
               <Folder className="w-3.5 h-3.5 text-indigo-500/60" />
@@ -214,13 +257,45 @@ export function FolderCard({
             </div>
           )}
           {showDriveBadge && folder.driveEmail && (
-            <span className="text-[10px] text-indigo-600 bg-indigo-500/10 dark:text-indigo-300 dark:bg-indigo-500/15 px-2 py-0.5 rounded-md border border-indigo-500/20 truncate max-w-[120px] shrink-0 font-bold" title={folder.driveEmail}>
-              ☁️ {driveDisplayName}
-            </span>
+            <div className="flex justify-end">
+              <span className="text-[10px] text-indigo-600 bg-indigo-500/10 dark:text-indigo-300 dark:bg-indigo-500/15 px-2 py-0.5 rounded-md border border-indigo-500/20 truncate max-w-[120px] shrink-0 font-bold" title={folder.driveEmail}>
+                ☁️ {driveDisplayName}
+              </span>
+            </div>
           )}
         </div>
       )}
     </motion.div>
+  );
+}
+
+function QuickButton({
+  icon: Icon,
+  label,
+  onClick,
+  danger,
+  primary,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: (e: React.MouseEvent) => void;
+  danger?: boolean;
+  primary?: boolean;
+}) {
+  return (
+    <button
+      onClick={(e) => onClick(e)}
+      className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all border ${
+        primary
+          ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/20 hover:border-indigo-500/30"
+          : danger
+          ? "bg-red-500/5 border-red-500/10 text-red-500 hover:bg-red-500/15"
+          : "bg-slate-200/40 border-slate-300/30 text-slate-600 dark:bg-white/5 dark:border-white/5 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-white/10"
+      }`}
+    >
+      <Icon className="w-3.5 h-3.5" />
+      {label}
+    </button>
   );
 }
 

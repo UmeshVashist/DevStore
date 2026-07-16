@@ -12,6 +12,7 @@ import { TabBar, DashboardTab } from "@/components/TabBar";
 import { FolderPanel } from "@/components/FolderPanel";
 import { BreadcrumbNav } from "@/components/BreadcrumbNav";
 import { GoogleDriveBanner } from "@/components/GoogleDriveSetup";
+import { downloadFolderAsZip } from "@/lib/folder-download";
 import { FILE_EXTENSIONS, MAX_FILE_SIZE_MB } from "@/lib/constants";
 import { AlertCircle, CheckCircle2, Scissors, Copy, Trash2, RotateCcw } from "lucide-react";
 
@@ -82,7 +83,7 @@ export function Dashboard() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/drive/status");
+      const res = await fetch(`/api/drive/status?t=${Date.now()}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         if (data.accounts) {
@@ -106,11 +107,13 @@ export function Dashboard() {
 
   const fetchFolders = useCallback(async () => {
     let url = "/api/folders";
+    url += (url.includes("?") ? "&" : "?") + `t=${Date.now()}`;
     if (activeDriveEmail) {
-      url += `?driveEmail=${encodeURIComponent(activeDriveEmail)}`;
+      url += `&driveEmail=${encodeURIComponent(activeDriveEmail)}`;
     }
     const res = await fetch(url, {
       headers: activeDriveEmail ? { "x-drive-email": activeDriveEmail } : {},
+      cache: "no-store",
     });
     if (res.ok) {
       const data = await res.json();
@@ -121,11 +124,13 @@ export function Dashboard() {
   const fetchItems = useCallback(async (folderId?: string | null, driveEmail?: string) => {
     const targetEmail = driveEmail || activeDriveEmail;
     let url = folderId ? `/api/files?folderId=${folderId}` : "/api/files";
+    url += (url.includes("?") ? "&" : "?") + `t=${Date.now()}`;
     if (targetEmail) {
-      url += (url.includes("?") ? "&" : "?") + `driveEmail=${encodeURIComponent(targetEmail)}`;
+      url += `&driveEmail=${encodeURIComponent(targetEmail)}`;
     }
     const res = await fetch(url, {
       headers: targetEmail ? { "x-drive-email": targetEmail } : {},
+      cache: "no-store",
     });
     if (res.ok) {
       const data = await res.json();
@@ -138,11 +143,13 @@ export function Dashboard() {
 
   const fetchTrash = useCallback(async () => {
     let url = "/api/trash";
+    url += (url.includes("?") ? "&" : "?") + `t=${Date.now()}`;
     if (activeDriveEmail) {
-      url += `?driveEmail=${encodeURIComponent(activeDriveEmail)}`;
+      url += `&driveEmail=${encodeURIComponent(activeDriveEmail)}`;
     }
     const res = await fetch(url, {
       headers: activeDriveEmail ? { "x-drive-email": activeDriveEmail } : {},
+      cache: "no-store",
     });
     if (res.ok) {
       const data = await res.json();
@@ -353,8 +360,9 @@ export function Dashboard() {
                     }
 
                     // 3. Fetch full metadata from our server for the dashboard
-                    const metaRes = await fetch(`/api/files/${fileId}?meta=true`, {
-                      headers: { "x-drive-email": targetEmail || "" }
+                    const metaRes = await fetch(`/api/files/${fileId}?meta=true&t=${Date.now()}`, {
+                      headers: { "x-drive-email": targetEmail || "" },
+                      cache: "no-store",
                     });
                     if (metaRes.ok) {
                       const metaData = await metaRes.json();
@@ -593,34 +601,91 @@ export function Dashboard() {
     };
   }, [hoveredItem, clipboard, handleCopy, handleCut, handlePaste]);
 
-  const handleDownload = (file: DriveFile) => {
-    const link = document.createElement("a");
-    link.href = `/api/files/${file.id}?driveEmail=${encodeURIComponent(file.driveEmail || "")}`;
-    link.download = file.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async (item: DriveItem) => {
+    if (isDriveFolder(item)) {
+      try {
+        await downloadFolderAsZip(
+          item.id,
+          item.name,
+          item.driveEmail || activeDriveEmail || "all",
+          (progress) => {
+            if (progress.status === "fetching_structure") {
+              showToast("success", `Scanning folder structure for "${item.name}"...`);
+            } else if (progress.status === "downloading_files") {
+              showToast(
+                "success",
+                `Downloading "${item.name}": ${progress.downloadedFiles}/${progress.totalFiles} files - ${progress.currentFileName.split("/").pop()}`
+              );
+            } else if (progress.status === "zipping") {
+              showToast("success", `Generating ZIP archive for "${item.name}"...`);
+            } else if (progress.status === "done") {
+              showToast("success", `Successfully downloaded "${item.name}"!`);
+            } else if (progress.status === "error") {
+              showToast("error", `Failed to download "${item.name}": ${progress.error}`);
+            }
+          }
+        );
+      } catch (err) {
+        showToast("error", `Failed to download folder: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } else {
+      const link = document.createElement("a");
+      link.href = `/api/files/${item.id}?driveEmail=${encodeURIComponent(item.driveEmail || "")}`;
+      link.download = item.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
-  const handleMultiDownload = (selectedItems: DriveItem[]) => {
+  const handleMultiDownload = async (selectedItems: DriveItem[]) => {
+    if (selectedItems.length === 0) return;
+
+    const folders = selectedItems.filter(isDriveFolder);
     const files = selectedItems.filter((item) => !isDriveFolder(item)) as DriveFile[];
-    if (files.length === 0) {
-      showToast("error", "Only files can be downloaded. Select files to download.");
-      return;
+
+    if (files.length > 0) {
+      files.forEach((file, index) => {
+        setTimeout(() => {
+          const link = document.createElement("a");
+          link.href = `/api/files/${file.id}?driveEmail=${encodeURIComponent(file.driveEmail || "")}`;
+          link.download = file.name;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }, index * 400);
+      });
+      showToast("success", `Downloading ${files.length} file(s)...`);
     }
 
-    files.forEach((file, index) => {
-      setTimeout(() => {
-        const link = document.createElement("a");
-        link.href = `/api/files/${file.id}?driveEmail=${encodeURIComponent(file.driveEmail || "")}`;
-        link.download = file.name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }, index * 400);
-    });
+    for (const folder of folders) {
+      try {
+        await downloadFolderAsZip(
+          folder.id,
+          folder.name,
+          folder.driveEmail || activeDriveEmail || "all",
+          (progress) => {
+            if (progress.status === "fetching_structure") {
+              showToast("success", `Scanning folder structure for "${folder.name}"...`);
+            } else if (progress.status === "downloading_files") {
+              showToast(
+                "success",
+                `Downloading "${folder.name}": ${progress.downloadedFiles}/${progress.totalFiles} files`
+              );
+            } else if (progress.status === "zipping") {
+              showToast("success", `Generating ZIP archive for "${folder.name}"...`);
+            } else if (progress.status === "done") {
+              showToast("success", `Successfully downloaded "${folder.name}"!`);
+            } else if (progress.status === "error") {
+              showToast("error", `Failed to download "${folder.name}": ${progress.error}`);
+            }
+          }
+        );
+      } catch (err) {
+        showToast("error", `Failed to download "${folder.name}": ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
 
-    showToast("success", `Downloading ${files.length} file(s)`);
     setSelectedIds(new Set());
   };
 
@@ -764,7 +829,9 @@ export function Dashboard() {
     if (ext === "html" || ext === "htm" || ext === "url") {
       if (ext === "url") {
         try {
-          const res = await fetch(`/api/files/${file.id}?driveEmail=${encodeURIComponent(file.driveEmail || "")}`);
+          const res = await fetch(`/api/files/${file.id}?driveEmail=${encodeURIComponent(file.driveEmail || "")}&t=${Date.now()}`, {
+            cache: "no-store",
+          });
           if (res.ok) {
             const text = await res.text();
             const match = text.match(/URL=(.+)/i);
@@ -894,7 +961,7 @@ export function Dashboard() {
             items={allFolders.filter((f) => !allFolders.some((p) => p.id === f.parentId))}
             loading={loading}
             onPreview={() => {}}
-            onDownload={() => {}}
+            onDownload={handleDownload}
             onDelete={handleDelete}
             onOpenFolder={(folder) => {
               handleOpenFolder(folder);
@@ -998,11 +1065,11 @@ export function Dashboard() {
                   </>
                 ) : (
                   <>
-                    {selectedItems.some(i => !isDriveFolder(i)) && (
+                    {selectedItems.length > 0 && (
                       <button
                         onClick={() => handleMultiDownload(selectedItems)}
                         className="glass-neo-btn px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white border border-slate-200/50 dark:border-white/10 text-xs font-bold shadow-neumorph-btn"
-                        title="Download selected files"
+                        title="Download selected items"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
