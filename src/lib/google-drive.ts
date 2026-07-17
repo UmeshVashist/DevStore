@@ -817,6 +817,8 @@ export async function uploadFile(
   // Resolve unique name for file uploads
   const uniqueName = await getUniqueFilename(drive, parentId, filename, mimeType);
 
+  const bodyStream = Buffer.isBuffer(mediaBody) ? Readable.from(mediaBody) : mediaBody;
+
   try {
     const res = await drive.files.create({
       ...DRIVE_OPTS,
@@ -828,7 +830,7 @@ export async function uploadFile(
       },
       media: {
         mimeType,
-        body: mediaBody,
+        body: bodyStream,
       },
       fields: "id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents,appProperties",
     });
@@ -1520,6 +1522,109 @@ export async function createUploadSessionWithRelativePath(
     : baseFolderId || (await getUserFilesRoot(userId, resolvedEmail));
 
   return createUploadSession(userId, filename, mimeType, fileSize, parentId, origin, resolvedEmail);
+}
+
+export async function moveCrossDriveItem(
+  userId: string,
+  itemId: string,
+  srcDriveEmail: string,
+  destDriveEmail: string,
+  targetFolderId?: string
+): Promise<void> {
+  const srcEmail = await resolveDriveEmail(srcDriveEmail, userId);
+  const destEmail = await resolveDriveEmail(destDriveEmail, userId);
+  if (!srcEmail || !destEmail || srcEmail.toLowerCase() === destEmail.toLowerCase()) {
+    throw new Error("Invalid source or destination drive");
+  }
+
+  const srcDrive = getDriveClient(srcEmail, userId);
+
+  // Get item metadata from source drive
+  const itemMeta = await srcDrive.files.get({
+    ...DRIVE_OPTS,
+    fileId: itemId,
+    fields: "id,name,mimeType",
+  });
+
+  const { name, mimeType } = itemMeta.data;
+  if (!name || !mimeType) {
+    throw new Error("Item not found on source drive");
+  }
+
+  // Resolve target folder ID in destination drive
+  const { filesFolderId: destFilesRoot } = await getUserFolders(userId, destEmail);
+  const destFolderId = targetFolderId || destFilesRoot;
+
+  if (mimeType === FOLDER_MIME) {
+    // It's a folder
+    await moveCrossDriveFolderInternal(userId, itemId, srcEmail, destEmail, destFolderId);
+  } else {
+    // It's a file
+    await moveCrossDriveFileInternal(userId, itemId, name, mimeType, srcEmail, destEmail, destFolderId);
+  }
+}
+
+async function moveCrossDriveFileInternal(
+  userId: string,
+  fileId: string,
+  name: string,
+  mimeType: string,
+  srcEmail: string,
+  destEmail: string,
+  destFolderId: string
+): Promise<void> {
+  // Download file content from source drive
+  const { buffer } = await downloadFile(userId, fileId, srcEmail);
+
+  // Upload file to destination drive
+  await uploadFile(userId, name, mimeType, buffer, destFolderId, destEmail);
+
+  // Permanently delete file from source drive
+  const srcDrive = getDriveClient(srcEmail, userId);
+  await srcDrive.files.delete({ ...DRIVE_OPTS, fileId });
+}
+
+async function moveCrossDriveFolderInternal(
+  userId: string,
+  sourceFolderId: string,
+  srcEmail: string,
+  destEmail: string,
+  destParentFolderId: string
+): Promise<void> {
+  const srcDrive = getDriveClient(srcEmail, userId);
+  const destDrive = getDriveClient(destEmail, userId);
+
+  // Get source folder metadata
+  const folderMeta = await srcDrive.files.get({
+    ...DRIVE_OPTS,
+    fileId: sourceFolderId,
+    fields: "name",
+  });
+
+  const folderName = folderMeta.data.name || "Untitled Folder";
+
+  // Create folder in target drive
+  const newFolderId = await findOrCreateFolder(destDrive, folderName, destParentFolderId, userId);
+
+  // List all items in source folder
+  const res = await srcDrive.files.list({
+    ...DRIVE_LIST_OPTS,
+    q: `'${sourceFolderId}' in parents and trashed=false`,
+    fields: "files(id,name,mimeType)",
+    pageSize: 200,
+  });
+
+  // Process items in folder recursively
+  for (const item of res.data.files || []) {
+    if (item.mimeType === FOLDER_MIME) {
+      await moveCrossDriveFolderInternal(userId, item.id!, srcEmail, destEmail, newFolderId);
+    } else {
+      await moveCrossDriveFileInternal(userId, item.id!, item.name || "file", item.mimeType || "application/octet-stream", srcEmail, destEmail, newFolderId);
+    }
+  }
+
+  // Delete source folder
+  await srcDrive.files.delete({ ...DRIVE_OPTS, fileId: sourceFolderId });
 }
 
 export { getDriveAuthMode };

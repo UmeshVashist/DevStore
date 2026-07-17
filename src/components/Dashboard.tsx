@@ -14,7 +14,8 @@ import { BreadcrumbNav } from "@/components/BreadcrumbNav";
 import { GoogleDriveBanner } from "@/components/GoogleDriveSetup";
 import { downloadFolderAsZip } from "@/lib/folder-download";
 import { FILE_EXTENSIONS, MAX_FILE_SIZE_MB } from "@/lib/constants";
-import { AlertCircle, CheckCircle2, Scissors, Copy, Trash2, RotateCcw } from "lucide-react";
+import { AlertCircle, CheckCircle2, Scissors, Copy, Trash2, RotateCcw, ArrowRightLeft } from "lucide-react";
+import { MoveCrossDriveModal } from "@/components/MoveCrossDriveModal";
 
 export function Dashboard() {
   const [items, setItems] = useState<DriveItem[]>([]);
@@ -35,6 +36,8 @@ export function Dashboard() {
   const [hoveredItem, setHoveredItem] = useState<DriveItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [renamingItem, setRenamingItem] = useState<DriveItem | null>(null);
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [moveModalItems, setMoveModalItems] = useState<DriveItem[]>([]);
 
   // Multiple Google Drives support states
   const [accounts, setAccounts] = useState<Array<{ email: string; connectedAt: string; expired?: boolean }>>([]);
@@ -824,6 +827,17 @@ export function Dashboard() {
     }
   }, [fetchAll]);
 
+  const handleMoveCrossDrive = useCallback((item: DriveItem) => {
+    setMoveModalItems([item]);
+    setIsMoveModalOpen(true);
+  }, []);
+
+  const handleMultiMoveCrossDrive = useCallback((selectedItems: DriveItem[]) => {
+    if (selectedItems.length === 0) return;
+    setMoveModalItems(selectedItems);
+    setIsMoveModalOpen(true);
+  }, []);
+
   const handlePreview = useCallback(async (file: DriveFile) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (ext === "html" || ext === "htm" || ext === "url") {
@@ -945,6 +959,7 @@ export function Dashboard() {
             onCopy={handleCopy}
             onCut={handleCut}
             onRename={setRenamingItem}
+            onMoveCrossDrive={handleMoveCrossDrive}
             onHoverItem={setHoveredItem}
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
@@ -969,6 +984,7 @@ export function Dashboard() {
             onCopy={handleCopy}
             onCut={handleCut}
             onRename={setRenamingItem}
+            onMoveCrossDrive={handleMoveCrossDrive}
             onHoverItem={setHoveredItem}
             selectedIds={selectedIds}
             onSelectToggle={handleSelectToggle}
@@ -1005,6 +1021,22 @@ export function Dashboard() {
           onRename={(newName) => handleRename(renamingItem!, newName)}
         />
 
+        <MoveCrossDriveModal
+          isOpen={isMoveModalOpen}
+          onClose={() => {
+            setIsMoveModalOpen(false);
+            setMoveModalItems([]);
+          }}
+          items={moveModalItems}
+          accounts={accounts}
+          activeDriveEmail={activeDriveEmail}
+          onMoveComplete={async () => {
+            await fetchAll();
+            setSelectedIds(new Set());
+          }}
+          showToast={showToast}
+        />
+
         {/* Floating Multi-Select Action Bar */}
         {(() => {
           const selectedItems = (
@@ -1015,7 +1047,7 @@ export function Dashboard() {
               : trashItems
           ).filter((item) => selectedIds.has(item.id));
 
-          if (selectedItems.length === 0) return null;
+          if (selectedItems.length === 0 || previewFile || renamingItem || isMoveModalOpen) return null;
 
           return (
             <motion.div
@@ -1092,6 +1124,14 @@ export function Dashboard() {
                     >
                       <Scissors className="w-4 h-4" />
                       <span>Cut</span>
+                    </button>
+                    <button
+                      onClick={() => handleMultiMoveCrossDrive(selectedItems)}
+                      className="glass-neo-btn px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white border border-slate-200/50 dark:border-white/10 text-xs font-bold shadow-neumorph-btn"
+                      title="Move selected items to another drive"
+                    >
+                      <ArrowRightLeft className="w-4 h-4" />
+                      <span>Move to Drive</span>
                     </button>
                     <button
                       onClick={() => handleMultiDelete(selectedItems)}

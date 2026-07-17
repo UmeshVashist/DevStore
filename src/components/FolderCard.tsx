@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { DriveFolder } from "@/lib/file-types";
-import { Folder, RotateCcw, Trash2, Clock, MoreVertical, Scissors, Copy, FolderOpen, Edit2, Download } from "lucide-react";
+import { Folder, RotateCcw, Trash2, Clock, MoreVertical, Scissors, Copy, FolderOpen, Edit2, Download, ArrowRightLeft } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { formatDate, daysUntilPermanentDelete } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -16,6 +16,7 @@ interface FolderCardProps {
   onCopy?: () => void;
   onCut?: () => void;
   onRename?: () => void;
+  onMoveCrossDrive?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   isTrash?: boolean;
@@ -36,6 +37,7 @@ export function FolderCard({
   onCopy,
   onCut,
   onRename,
+  onMoveCrossDrive,
   onMouseEnter,
   onMouseLeave,
   isTrash = false,
@@ -186,6 +188,16 @@ export function FolderCard({
                     label="Rename"
                     onClick={() => {
                       onRename();
+                      setMenuOpen(false);
+                    }}
+                  />
+                )}
+                {onMoveCrossDrive && (
+                  <ActionButton
+                    icon={ArrowRightLeft}
+                    label="Move to Drive"
+                    onClick={() => {
+                      onMoveCrossDrive();
                       setMenuOpen(false);
                     }}
                   />

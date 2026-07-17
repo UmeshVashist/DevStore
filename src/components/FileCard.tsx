@@ -11,6 +11,7 @@ import {
   Scissors,
   Copy,
   Edit2,
+  ArrowRightLeft,
 } from "lucide-react";
 import { DriveFile } from "@/lib/file-types";
 import { FileIcon } from "./FileIcon";
@@ -27,6 +28,7 @@ interface FileCardProps {
   onCopy?: () => void;
   onCut?: () => void;
   onRename?: () => void;
+  onMoveCrossDrive?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   isTrash?: boolean;
@@ -47,6 +49,7 @@ export function FileCard({
   onCopy,
   onCut,
   onRename,
+  onMoveCrossDrive,
   onMouseEnter,
   onMouseLeave,
   isTrash = false,
@@ -162,6 +165,7 @@ export function FileCard({
                     {onCut && <ActionButton icon={Scissors} label="Cut" onClick={() => { onCut(); setMenuOpen(false); }} />}
                     {onCopy && <ActionButton icon={Copy} label="Copy" onClick={() => { onCopy(); setMenuOpen(false); }} />}
                     {onRename && <ActionButton icon={Edit2} label="Rename" onClick={() => { onRename(); setMenuOpen(false); }} />}
+                    {onMoveCrossDrive && <ActionButton icon={ArrowRightLeft} label="Move to Drive" onClick={() => { onMoveCrossDrive(); setMenuOpen(false); }} />}
                     <ActionButton icon={Trash2} label="Delete" onClick={() => { onDelete(file); setMenuOpen(false); }} danger />
                   </>
                 )}

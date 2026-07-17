@@ -16,11 +16,6 @@ export default clerkMiddleware(async (auth, request) => {
   const { userId } = await auth();
   const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
 
-  // Intercept POST requests to page routes to prevent Next.js 404 compile logs
-  if (request.method === "POST" && !isApiRoute && !request.nextUrl.pathname.includes(".")) {
-    return NextResponse.json({ success: true });
-  }
-
   // Already signed in → go to dashboard
   if (userId && isAuthPage(request)) {
     return NextResponse.redirect(new URL("/", request.url));
