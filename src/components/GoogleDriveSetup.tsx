@@ -11,8 +11,9 @@ export function GoogleDriveBanner() {
     connected: boolean;
     hasClientCredentials: boolean;
     authMode?: "oauth" | "service_account";
+    hasExpiredAccount: boolean;
     loading: boolean;
-  }>({ connected: false, hasClientCredentials: false, loading: true });
+  }>({ connected: false, hasClientCredentials: false, hasExpiredAccount: false, loading: true });
 
   useEffect(() => {
     fetch(`/api/drive/status?t=${Date.now()}`, { cache: "no-store" })
@@ -22,32 +23,38 @@ export function GoogleDriveBanner() {
           connected: data.connected,
           hasClientCredentials: data.hasClientCredentials,
           authMode: data.authMode,
+          hasExpiredAccount: data.accounts?.some((acc: { expired?: boolean }) => acc.expired) || false,
           loading: false,
         })
       )
       .catch(() => setStatus((s) => ({ ...s, loading: false })));
   }, []);
 
-  if (status.loading || (status.connected && status.authMode === "oauth")) return null;
+  if (status.loading) return null;
+  if (status.connected && status.authMode === "oauth" && !status.hasExpiredAccount) return null;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-card p-4 mb-6 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center gap-3"
+      className={`glass-card p-4 mb-6 border ${status.hasExpiredAccount ? 'border-red-300 dark:border-red-500/35 bg-red-50/70 dark:bg-red-950/20' : 'border-amber-300 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/20'} flex flex-col sm:flex-row items-start sm:items-center gap-3`}
     >
-      <AlertCircle className="w-6 h-6 text-amber-400 shrink-0" />
+      <AlertCircle className={`w-6 h-6 ${status.hasExpiredAccount ? 'text-red-500 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'} shrink-0`} />
       <div className="flex-1">
-        <h4 className="text-white font-medium">Google Drive Not Connected</h4>
-        <p className="text-white/60 text-xs mt-0.5">
-          OAuth authentication mode active hai. Files access aur upload karne ke liye apna Google Account connect karein.
+        <h4 className={`font-medium ${status.hasExpiredAccount ? 'text-red-800 dark:text-white' : 'text-amber-800 dark:text-white'}`}>
+          {status.hasExpiredAccount ? "Google Drive Connection Expired" : "Google Drive Not Connected"}
+        </h4>
+        <p className={`text-xs mt-0.5 ${status.hasExpiredAccount ? 'text-red-700/80 dark:text-white/60' : 'text-amber-700/80 dark:text-white/60'}`}>
+          {status.hasExpiredAccount
+            ? "Aapka Google account session expire ho gaya hai. Files read/write karne ke liye dubara connect karein."
+            : "OAuth authentication mode active hai. Files access aur upload karne ke liye apna Google Account connect karein."}
         </p>
       </div>
       <Link
         href="/setup/drive"
-        className="text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-[#0f0c1b] px-3.5 py-1.5 rounded-lg transition-colors whitespace-nowrap self-end sm:self-center"
+        className={`text-xs font-semibold ${status.hasExpiredAccount ? 'bg-red-500 hover:bg-red-400' : 'bg-amber-500 hover:bg-amber-400'} text-[#0f0c1b] px-3.5 py-1.5 rounded-lg transition-colors whitespace-nowrap self-end sm:self-center`}
       >
-        Connect Now
+        {status.hasExpiredAccount ? "Reconnect Now" : "Connect Now"}
       </Link>
     </motion.div>
   );
@@ -63,7 +70,7 @@ function SetupContent() {
     hasClientCredentials: boolean;
     authMode?: "oauth" | "service_account";
     email?: string;
-    accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
+    accounts?: Array<{ email: string; name?: string; connectedAt: string; expired?: boolean }>;
     loading: boolean;
   }>({ connected: false, hasClientCredentials: false, loading: true });
 
@@ -184,7 +191,7 @@ function SetupContent() {
                 {status.accounts && status.accounts.length > 0 ? (
                   <div className="space-y-3">
                     {status.accounts.map((acc) => (
-                      <div key={acc.email} className="flex items-center justify-between gap-2 p-3 rounded-lg glass-neo-out border border-slate-200/30 dark:border-white/5">
+                      <div key={acc.email} className={`flex items-center justify-between gap-2 p-3 rounded-lg glass-neo-out border ${acc.expired ? 'border-red-500/35 bg-red-950/5' : 'border-slate-200/30 dark:border-white/5'}`}>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-slate-800 dark:text-white text-sm font-bold truncate">
@@ -195,24 +202,43 @@ function SetupContent() {
                                 ({acc.email})
                               </span>
                             )}
+                            {acc.expired && (
+                              <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 animate-pulse">
+                                Expired
+                              </span>
+                            )}
                           </div>
                           {acc.connectedAt && acc.connectedAt !== "env" && (
                             <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5">
                               Connected: {new Date(acc.connectedAt).toLocaleDateString()}
                             </p>
                           )}
+                          {acc.expired && (
+                            <p className="text-red-500 dark:text-red-400 text-[10px] mt-1 font-semibold">
+                              Google session has expired. Re-authenticate below.
+                            </p>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              setSelectedRenameAccount(acc);
-                              setNewAccountAlias(acc.name || acc.email);
-                            }}
-                            className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
-                            title="Edit Alias"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
+                          {acc.expired ? (
+                            <a
+                              href="/api/auth/google"
+                              className="text-xs bg-amber-500 hover:bg-amber-400 text-[#0f0c1b] px-3 py-1.5 rounded-lg transition-all font-bold whitespace-nowrap shadow-sm"
+                            >
+                              Reconnect
+                            </a>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setSelectedRenameAccount(acc);
+                                setNewAccountAlias(acc.name || acc.email);
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
+                              title="Edit Alias"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={async () => {
                               if (confirm(`Disconnect ${acc.email}?`)) {
@@ -246,7 +272,7 @@ function SetupContent() {
                 )}
               </div>
               <Link href="/" className="btn-primary block text-center shadow-neumorph-btn hover:shadow-neumorph-out py-3">
-                Dashboard par jayein
+                Go to Dashboard
               </Link>
               <a
                 href="/api/auth/google"

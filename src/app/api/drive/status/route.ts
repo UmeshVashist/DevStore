@@ -38,6 +38,7 @@ export async function GET() {
     email: acc.email,
     name: acc.name || acc.email,
     connectedAt: acc.connected_at,
+    expired: acc.expired || false,
   }));
 
   const primaryEmail =

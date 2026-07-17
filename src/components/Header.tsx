@@ -26,7 +26,7 @@ export function Header({
 }: {
   activeDrive?: string;
   onActiveDriveChange?: (email: string) => void;
-  accounts?: Array<{ email: string; connectedAt: string }>;
+  accounts?: Array<{ email: string; connectedAt: string; expired?: boolean }>;
 }) {
   const [quota, setQuota] = useState<{ limit?: string; usage?: string } | null>(null);
 
@@ -103,8 +103,8 @@ export function Header({
               { value: "all", label: "All Drives", icon: "🌐" },
               ...accounts.map((acc) => ({
                 value: acc.email,
-                label: acc.email,
-                icon: "📧",
+                label: acc.expired ? `${acc.email} (Expired)` : acc.email,
+                icon: acc.expired ? "⚠️" : "📧",
               })),
             ]}
             value={activeDrive}

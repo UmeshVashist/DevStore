@@ -15,9 +15,24 @@ import {
   getDriveAuthMode,
   getDriveClient,
   getGoogleAuth,
+  clearGoogleAuthCache,
 } from "./google-auth";
-import { getStoredAccounts, fetchAndCacheAccounts } from "./google-oauth-store";
+import { getStoredAccounts, fetchAndCacheAccounts, markAccountExpired } from "./google-oauth-store";
 import { auth } from "@clerk/nextjs/server";
+
+export async function handleDriveError(err: unknown, email?: string, userId?: string) {
+  const errorObj = err as { message?: string };
+  const errMsg = errorObj?.message || String(err);
+  if (errMsg.includes("invalid_grant") && email) {
+    console.warn(`Token expired or revoked for ${email} (invalid_grant). Marking account as expired...`);
+    try {
+      await markAccountExpired(email, userId);
+      clearGoogleAuthCache();
+    } catch (cleanupErr) {
+      console.error(`Failed to automatically mark account ${email} as expired after invalid_grant:`, cleanupErr);
+    }
+  }
+}
 
 // Memory caches to significantly boost performance on Vercel
 interface FileCountsCache {
@@ -67,6 +82,7 @@ async function resolveDriveEmail(driveEmail?: string, userId?: string): Promise<
     let maxFree = -1;
     await Promise.all(
       accounts.map(async (acc) => {
+        if (acc.expired) return;
         try {
           const drive = getDriveClient(acc.email, resolvedUserId);
           const about = await drive.about.get({ fields: "storageQuota" });
@@ -80,6 +96,7 @@ async function resolveDriveEmail(driveEmail?: string, userId?: string): Promise<
           }
         } catch (err) {
           console.error(`Error querying quota for resolving best drive ${acc.email}:`, err);
+          await handleDriveError(err, acc.email, resolvedUserId);
         }
       })
     );
@@ -351,33 +368,50 @@ export async function listBrowseItems(
   folderId?: string,
   driveEmail?: string
 ): Promise<DriveItem[]> {
-  if (driveEmail === "all") {
-    await fetchAndCacheAccounts(userId);
-    const accounts = getStoredAccounts(userId);
-    if (accounts.length === 0) {
-      return listSingleBrowseItems(userId, folderId);
+  try {
+    if (driveEmail && driveEmail !== "all") {
+      const accounts = getStoredAccounts(userId);
+      const matched = accounts.find(a => a.email?.toLowerCase() === driveEmail.toLowerCase());
+      if (matched?.expired) {
+        throw new Error("invalid_grant");
+      }
     }
 
-    const results = await Promise.all(
-      accounts.map(async (acc) => {
-        try {
-          return await listSingleBrowseItems(userId, folderId, acc.email);
-        } catch (err) {
-          console.error(`Error listing items for ${acc.email}:`, err);
-          return [];
-        }
-      })
-    );
+    if (driveEmail === "all") {
+      await fetchAndCacheAccounts(userId);
+      const accounts = getStoredAccounts(userId);
+      if (accounts.length === 0) {
+        return listSingleBrowseItems(userId, folderId);
+      }
 
-    const merged = results.flat();
-    return merged.sort((a, b) => {
-      if (a.isFolder && !b.isFolder) return -1;
-      if (!a.isFolder && b.isFolder) return 1;
-      return a.name.localeCompare(b.name);
-    });
+      const results = await Promise.all(
+        accounts.map(async (acc) => {
+          if (acc.expired) return [];
+          try {
+            return await listSingleBrowseItems(userId, folderId, acc.email);
+          } catch (err) {
+            console.error(`Error listing items for ${acc.email}:`, err);
+            await handleDriveError(err, acc.email, userId);
+            return [];
+          }
+        })
+      );
+
+      const merged = results.flat();
+      return merged.sort((a, b) => {
+        if (a.isFolder && !b.isFolder) return -1;
+        if (!a.isFolder && b.isFolder) return 1;
+        return a.name.localeCompare(b.name);
+      });
+    }
+
+    return await listSingleBrowseItems(userId, folderId, driveEmail);
+  } catch (err) {
+    if (driveEmail) {
+      await handleDriveError(err, driveEmail, userId);
+    }
+    throw err;
   }
-
-  return listSingleBrowseItems(userId, folderId, driveEmail);
 }
 
 async function listSingleBrowseItems(
@@ -422,27 +456,44 @@ async function listSingleBrowseItems(
 }
 
 export async function listAllUserFolders(userId: string, driveEmail?: string): Promise<DriveFolder[]> {
-  if (driveEmail === "all") {
-    await fetchAndCacheAccounts(userId);
-    const accounts = getStoredAccounts(userId);
-    if (accounts.length === 0) {
-      return listSingleAllUserFolders(userId);
+  try {
+    if (driveEmail && driveEmail !== "all") {
+      const accounts = getStoredAccounts(userId);
+      const matched = accounts.find(a => a.email?.toLowerCase() === driveEmail.toLowerCase());
+      if (matched?.expired) {
+        throw new Error("invalid_grant");
+      }
     }
-    const results = await Promise.all(
-      accounts.map(async (acc) => {
-        try {
-          return await listSingleAllUserFolders(userId, acc.email);
-        } catch (err) {
-          console.error(`Error listing all folders for ${acc.email}:`, err);
-          return [];
-        }
-      })
-    );
-    const merged = results.flat();
-    return merged.sort((a, b) => a.name.localeCompare(b.name));
-  }
 
-  return listSingleAllUserFolders(userId, driveEmail);
+    if (driveEmail === "all") {
+      await fetchAndCacheAccounts(userId);
+      const accounts = getStoredAccounts(userId);
+      if (accounts.length === 0) {
+        return listSingleAllUserFolders(userId);
+      }
+      const results = await Promise.all(
+        accounts.map(async (acc) => {
+          if (acc.expired) return [];
+          try {
+            return await listSingleAllUserFolders(userId, acc.email);
+          } catch (err) {
+            console.error(`Error listing all folders for ${acc.email}:`, err);
+            await handleDriveError(err, acc.email, userId);
+            return [];
+          }
+        })
+      );
+      const merged = results.flat();
+      return merged.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return await listSingleAllUserFolders(userId, driveEmail);
+  } catch (err) {
+    if (driveEmail) {
+      await handleDriveError(err, driveEmail, userId);
+    }
+    throw err;
+  }
 }
 
 async function listSingleAllUserFolders(userId: string, driveEmail?: string): Promise<DriveFolder[]> {
@@ -672,31 +723,48 @@ export async function listTrashFiles(userId: string, driveEmail?: string): Promi
 }
 
 export async function listTrashItems(userId: string, driveEmail?: string): Promise<DriveItem[]> {
-  if (driveEmail === "all") {
-    await fetchAndCacheAccounts(userId);
-    const accounts = getStoredAccounts(userId);
-    if (accounts.length === 0) {
-      return listSingleTrashItems(userId);
+  try {
+    if (driveEmail && driveEmail !== "all") {
+      const accounts = getStoredAccounts(userId);
+      const matched = accounts.find(a => a.email?.toLowerCase() === driveEmail.toLowerCase());
+      if (matched?.expired) {
+        throw new Error("invalid_grant");
+      }
     }
-    const results = await Promise.all(
-      accounts.map(async (acc) => {
-        try {
-          return await listSingleTrashItems(userId, acc.email);
-        } catch (err) {
-          console.error(`Error listing trash for ${acc.email}:`, err);
-          return [];
-        }
-      })
-    );
-    const merged = results.flat();
-    return merged.sort((a, b) => {
-      const timeA = a.deletedAt || a.modifiedAt;
-      const timeB = b.deletedAt || b.modifiedAt;
-      return timeB.localeCompare(timeA);
-    });
-  }
 
-  return listSingleTrashItems(userId, driveEmail);
+    if (driveEmail === "all") {
+      await fetchAndCacheAccounts(userId);
+      const accounts = getStoredAccounts(userId);
+      if (accounts.length === 0) {
+        return listSingleTrashItems(userId);
+      }
+      const results = await Promise.all(
+        accounts.map(async (acc) => {
+          if (acc.expired) return [];
+          try {
+            return await listSingleTrashItems(userId, acc.email);
+          } catch (err) {
+            console.error(`Error listing trash for ${acc.email}:`, err);
+            await handleDriveError(err, acc.email, userId);
+            return [];
+          }
+        })
+      );
+      const merged = results.flat();
+      return merged.sort((a, b) => {
+        const timeA = a.deletedAt || a.modifiedAt;
+        const timeB = b.deletedAt || b.modifiedAt;
+        return timeB.localeCompare(timeA);
+      });
+    }
+
+    return await listSingleTrashItems(userId, driveEmail);
+  } catch (err) {
+    if (driveEmail) {
+      await handleDriveError(err, driveEmail, userId);
+    }
+    throw err;
+  }
 }
 
 async function listSingleTrashItems(userId: string, driveEmail?: string): Promise<DriveItem[]> {
@@ -1054,25 +1122,42 @@ export async function permanentlyDeleteFile(userId: string, fileId: string, driv
 }
 
 export async function purgeExpiredTrash(userId: string, driveEmail?: string): Promise<number> {
-  if (driveEmail === "all") {
-    await fetchAndCacheAccounts(userId);
-    const accounts = getStoredAccounts(userId);
-    if (accounts.length === 0) {
-      return purgeSingleExpiredTrash(userId);
+  try {
+    if (driveEmail && driveEmail !== "all") {
+      const accounts = getStoredAccounts(userId);
+      const matched = accounts.find(a => a.email?.toLowerCase() === driveEmail.toLowerCase());
+      if (matched?.expired) {
+        throw new Error("invalid_grant");
+      }
     }
-    const results = await Promise.all(
-      accounts.map(async (acc) => {
-        try {
-          return await purgeSingleExpiredTrash(userId, acc.email);
-        } catch (err) {
-          console.error(`Error purging trash for ${acc.email}:`, err);
-          return 0;
-        }
-      })
-    );
-    return results.reduce((acc, val) => acc + val, 0);
+
+    if (driveEmail === "all") {
+      await fetchAndCacheAccounts(userId);
+      const accounts = getStoredAccounts(userId);
+      if (accounts.length === 0) {
+        return purgeSingleExpiredTrash(userId);
+      }
+      const results = await Promise.all(
+        accounts.map(async (acc) => {
+          if (acc.expired) return 0;
+          try {
+            return await purgeSingleExpiredTrash(userId, acc.email);
+          } catch (err) {
+            console.error(`Error purging trash for ${acc.email}:`, err);
+            await handleDriveError(err, acc.email, userId);
+            return 0;
+          }
+        })
+      );
+      return results.reduce((acc, val) => acc + val, 0);
+    }
+    return await purgeSingleExpiredTrash(userId, driveEmail);
+  } catch (err) {
+    if (driveEmail) {
+      await handleDriveError(err, driveEmail, userId);
+    }
+    throw err;
   }
-  return purgeSingleExpiredTrash(userId, driveEmail);
 }
 
 async function purgeSingleExpiredTrash(userId: string, driveEmail?: string): Promise<number> {
@@ -1256,36 +1341,53 @@ export async function getStorageQuota(driveEmail?: string): Promise<{ limit?: st
     }
   } catch {}
 
-  if (driveEmail === "all") {
-    const accounts = getStoredAccounts(userId);
-    if (accounts.length === 0) {
-      return getSingleStorageQuota(undefined, userId);
+  try {
+    if (driveEmail && driveEmail !== "all") {
+      const accounts = getStoredAccounts(userId);
+      const matched = accounts.find(a => a.email?.toLowerCase() === driveEmail.toLowerCase());
+      if (matched?.expired) {
+        throw new Error("invalid_grant");
+      }
     }
 
-    let totalLimit = 0;
-    let totalUsage = 0;
+    if (driveEmail === "all") {
+      const accounts = getStoredAccounts(userId);
+      if (accounts.length === 0) {
+        return getSingleStorageQuota(undefined, userId);
+      }
 
-    await Promise.all(
-      accounts.map(async (acc) => {
-        try {
-          const quota = await getSingleStorageQuota(acc.email, userId);
-          if (quota) {
-            totalLimit += parseInt(quota.limit || "0", 10);
-            totalUsage += parseInt(quota.usage || "0", 10);
+      let totalLimit = 0;
+      let totalUsage = 0;
+
+      await Promise.all(
+        accounts.map(async (acc) => {
+          if (acc.expired) return;
+          try {
+            const quota = await getSingleStorageQuota(acc.email, userId);
+            if (quota) {
+              totalLimit += parseInt(quota.limit || "0", 10);
+              totalUsage += parseInt(quota.usage || "0", 10);
+            }
+          } catch (err) {
+            console.error(`Error querying storage quota for ${acc.email}:`, err);
+            await handleDriveError(err, acc.email, userId);
           }
-        } catch (err) {
-          console.error(`Error querying storage quota for ${acc.email}:`, err);
-        }
-      })
-    );
+        })
+      );
 
-    return {
-      limit: totalLimit.toString(),
-      usage: totalUsage.toString(),
-    };
+      return {
+        limit: totalLimit.toString(),
+        usage: totalUsage.toString(),
+      };
+    }
+
+    return await getSingleStorageQuota(driveEmail, userId);
+  } catch (err) {
+    if (driveEmail) {
+      await handleDriveError(err, driveEmail, userId);
+    }
+    throw err;
   }
-
-  return getSingleStorageQuota(driveEmail, userId);
 }
 
 async function getSingleStorageQuota(driveEmail?: string, userId?: string): Promise<{ limit?: string; usage?: string }> {
@@ -1297,7 +1399,10 @@ async function getSingleStorageQuota(driveEmail?: string, userId?: string): Prom
     return res.data.storageQuota || {};
   } catch (error) {
     console.error("Error fetching storage quota:", error);
-    return {};
+    if (driveEmail) {
+      await handleDriveError(error, driveEmail, userId);
+    }
+    throw error;
   }
 }
 

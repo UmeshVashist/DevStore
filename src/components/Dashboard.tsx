@@ -37,7 +37,7 @@ export function Dashboard() {
   const [renamingItem, setRenamingItem] = useState<DriveItem | null>(null);
 
   // Multiple Google Drives support states
-  const [accounts, setAccounts] = useState<Array<{ email: string; connectedAt: string }>>([]);
+  const [accounts, setAccounts] = useState<Array<{ email: string; connectedAt: string; expired?: boolean }>>([]);
   const [activeDriveEmail, setActiveDriveEmail] = useState<string>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("devdata_active_drive") || "all";

@@ -9,6 +9,7 @@ export interface GoogleOAuthStore {
   email?: string;
   connected_at: string;
   name?: string;
+  expired?: boolean;
 }
 
 export interface GoogleOAuthStoreMulti {
@@ -36,51 +37,67 @@ export async function fetchAndCacheAccounts(userId: string): Promise<GoogleOAuth
   }
 }
 
+function getLocalFileAccounts(): GoogleOAuthStore[] {
+  if (process.env.NODE_ENV === "production") return [];
+  try {
+    if (fs.existsSync(TOKEN_FILE)) {
+      const content = fs.readFileSync(TOKEN_FILE, "utf-8").trim();
+      if (!content) return [];
+      const parsed = JSON.parse(content);
+      let fileAccounts: GoogleOAuthStore[] = [];
+      
+      // Support old single-account format
+      if (parsed.refresh_token) {
+        fileAccounts = [{
+          refresh_token: parsed.refresh_token,
+          email: parsed.email,
+          name: parsed.name,
+          connected_at: parsed.connected_at || new Date().toISOString(),
+          expired: parsed.expired
+        }];
+      } else if (Array.isArray(parsed)) { // Support array directly
+        fileAccounts = parsed;
+      } else if (parsed && Array.isArray(parsed.accounts)) { // Support new format: { accounts: [...] }
+        fileAccounts = parsed.accounts;
+      }
+      return fileAccounts;
+    }
+  } catch (err) {
+    console.error("Error reading stored accounts file:", err);
+  }
+  return [];
+}
+
 export function getStoredAccounts(userId?: string): GoogleOAuthStore[] {
+  let accounts: GoogleOAuthStore[] = [];
+
   // 1. Try to get from request-scoped in-memory cache
   const resolvedUserId = userId;
   if (resolvedUserId && accountsCache.has(resolvedUserId)) {
-    const cached = accountsCache.get(resolvedUserId)!;
-    if (cached.length > 0) {
-      return cached;
-    }
+    accounts = [...accountsCache.get(resolvedUserId)!];
   }
 
   // 2. Fallback to local .google-oauth.json file (useful for scripts & local development)
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      if (fs.existsSync(TOKEN_FILE)) {
-        const content = fs.readFileSync(TOKEN_FILE, "utf-8").trim();
-        if (!content) return [];
-        const parsed = JSON.parse(content);
-        let fileAccounts: GoogleOAuthStore[] = [];
-        
-        // Support old single-account format
-        if (parsed.refresh_token) {
-          fileAccounts = [{
-            refresh_token: parsed.refresh_token,
-            email: parsed.email,
-            name: parsed.name,
-            connected_at: parsed.connected_at || new Date().toISOString()
-          }];
-        } else if (Array.isArray(parsed)) { // Support array directly
-          fileAccounts = parsed;
-        } else if (parsed && Array.isArray(parsed.accounts)) { // Support new format: { accounts: [...] }
-          fileAccounts = parsed.accounts;
-        }
-
-        if (fileAccounts.length > 0) {
-          if (resolvedUserId) {
-            accountsCache.set(resolvedUserId, fileAccounts);
-          }
-          return fileAccounts;
-        }
-      }
-    } catch (err) {
-      console.error("Error reading stored accounts file:", err);
+  if (accounts.length === 0 && process.env.NODE_ENV !== "production") {
+    accounts = getLocalFileAccounts();
+    if (accounts.length > 0 && resolvedUserId) {
+      accountsCache.set(resolvedUserId, accounts);
     }
   }
-  return [];
+
+  // 3. Sync expired flag from local file to ensure Clerk rate limits don't mask expiration state locally
+  if (process.env.NODE_ENV !== "production" && accounts.length > 0) {
+    const localAccounts = getLocalFileAccounts();
+    accounts = accounts.map(acc => {
+      const localAcc = localAccounts.find(l => l.email?.toLowerCase() === acc.email?.toLowerCase());
+      if (localAcc && localAcc.expired) {
+        return { ...acc, expired: true };
+      }
+      return acc;
+    });
+  }
+
+  return accounts;
 }
 
 export function getStoredRefreshToken(email?: string, userId?: string): string | undefined {
@@ -262,6 +279,52 @@ export async function deleteStoredAccount(email: string, userId?: string): Promi
     fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
   } catch {}
   return true;
+}
+
+export async function markAccountExpired(email: string, userId?: string): Promise<boolean> {
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    try {
+      const authSession = await auth();
+      resolvedUserId = authSession.userId || undefined;
+    } catch {}
+  }
+
+  const accounts = getStoredAccounts(resolvedUserId);
+  const existing = accounts.find(
+    (acc) =>
+      email &&
+      acc.email &&
+      acc.email.toLowerCase() === email.toLowerCase()
+  );
+
+  if (existing) {
+    if (existing.expired === true) {
+      return true;
+    }
+    existing.expired = true;
+    
+    if (resolvedUserId) {
+      accountsCache.set(resolvedUserId, accounts);
+      try {
+        const client = await clerkClient();
+        await client.users.updateUserMetadata(resolvedUserId, {
+          privateMetadata: {
+            googleAccounts: accounts,
+          },
+        });
+      } catch (err) {
+        console.error("Failed to mark account expired in Clerk metadata:", err);
+      }
+    }
+
+    try {
+      const data: GoogleOAuthStoreMulti = { accounts };
+      fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+    } catch {}
+    return true;
+  }
+  return false;
 }
 
 export function isOAuthConfigured(userId?: string): boolean {
