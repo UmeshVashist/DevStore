@@ -30,11 +30,18 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const isSatellite = process.env.NEXT_PUBLIC_CLERK_IS_SATELLITE === "true";
+  const domain = process.env.NEXT_PUBLIC_CLERK_DOMAIN;
+  const signInUrl = process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL;
+
   return (
     <ClerkProvider
+      isSatellite={isSatellite}
+      domain={domain as string}
+      signInUrl={signInUrl as string}
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
-      afterSignOutUrl={`${process.env.NEXT_PUBLIC_LAUNCHER_URL || "http://localhost:3000"}/auth/login`}
+      afterSignOutUrl={`${process.env.NEXT_PUBLIC_LAUNCHER_URL || "https://dev-tech-hub.vercel.app"}/auth/login`}
     >
       <html lang="en" suppressHydrationWarning>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
