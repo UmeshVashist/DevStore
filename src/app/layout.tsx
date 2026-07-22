@@ -39,6 +39,7 @@ export default function RootLayout({
       isSatellite={isSatellite}
       domain={domain as string}
       signInUrl={signInUrl as string}
+      satelliteAutoSync={true}
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
       afterSignOutUrl={`${process.env.NEXT_PUBLIC_LAUNCHER_URL || "https://dev-tech-hub.vercel.app"}/auth/login`}
