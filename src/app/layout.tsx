@@ -34,7 +34,7 @@ export default function RootLayout({
     <ClerkProvider
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
-      afterSignOutUrl="/sign-in"
+      afterSignOutUrl="http://localhost:3000/auth/login"
     >
       <html lang="en" suppressHydrationWarning>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>

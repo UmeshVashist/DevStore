@@ -63,7 +63,10 @@ export function Header({
       transition={{ duration: 0.5 }}
       className="glass-neo-out rounded-2xl px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 mb-8 relative z-50"
     >
-      <div className="flex items-center gap-3 w-full md:w-auto">
+      <a
+        href="http://localhost:3000/dashboard"
+        className="flex items-center gap-3 w-full md:w-auto hover:opacity-80 transition-opacity"
+      >
         <motion.div
           animate={{ rotate: [0, 5, -5, 0] }}
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
@@ -77,7 +80,7 @@ export function Header({
             <Cloud className="w-3 h-3 text-indigo-500" /> Google Drive Cloud Storage
           </p>
         </div>
-      </div>
+      </a>
 
       {quota && (
         <div className="flex flex-col items-center gap-1.5 max-w-xs w-full px-4">
