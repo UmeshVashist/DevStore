@@ -64,7 +64,7 @@ export function Header({
       className="glass-neo-out rounded-2xl px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 mb-8 relative z-50"
     >
       <a
-        href="http://localhost:3000/dashboard"
+        href={`${process.env.NEXT_PUBLIC_LAUNCHER_URL || "http://localhost:3000"}/dashboard`}
         className="flex items-center gap-3 w-full md:w-auto hover:opacity-80 transition-opacity"
       >
         <motion.div
