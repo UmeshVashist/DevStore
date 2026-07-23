@@ -12,19 +12,26 @@ const isAuthPage = createRouteMatcher([
   "/sign-up(.*)",
 ]);
 
-export default clerkMiddleware(async (auth, request) => {
-  const { userId } = await auth();
-  const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
+export default clerkMiddleware(
+  async (auth, request) => {
+    const { userId } = await auth();
+    const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
 
-  // Already signed in → go to dashboard
-  if (userId && isAuthPage(request)) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
+    // Already signed in → go to dashboard
+    if (userId && isAuthPage(request)) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
 
-  if (!isPublicRoute(request) && !isApiRoute) {
-    await auth.protect();
+    if (!isPublicRoute(request) && !isApiRoute) {
+      await auth.protect();
+    }
+  },
+  {
+    isSatellite: process.env.NEXT_PUBLIC_CLERK_IS_SATELLITE === "true",
+    domain: process.env.NEXT_PUBLIC_CLERK_DOMAIN,
+    satelliteAutoSync: true,
   }
-});
+);
 
 export const config = {
   matcher: [
