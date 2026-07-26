@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { SessionTimeoutHandler } from "@/components/SessionTimeoutHandler";
+import { headers } from "next/headers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,14 +26,23 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headersList = await headers();
+  const host = headersList.get("host") || "";
+  const isLocalhost = host.includes("localhost");
+
   const isSatellite = process.env.NEXT_PUBLIC_CLERK_IS_SATELLITE === "true";
-  const domain = process.env.NEXT_PUBLIC_CLERK_DOMAIN;
-  const signInUrl = process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL;
+  const domain = isLocalhost ? host : process.env.NEXT_PUBLIC_CLERK_DOMAIN;
+  const signInUrl = isLocalhost 
+    ? "http://localhost:3000/auth/login" 
+    : process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL;
+  const launcherUrl = isLocalhost 
+    ? "http://localhost:3000" 
+    : (process.env.NEXT_PUBLIC_LAUNCHER_URL || "https://dev-tech-hub.vercel.app");
 
   return (
     <ClerkProvider
@@ -42,7 +52,7 @@ export default function RootLayout({
       satelliteAutoSync={true}
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
-      afterSignOutUrl={`${process.env.NEXT_PUBLIC_LAUNCHER_URL || "https://dev-tech-hub.vercel.app"}/auth/login`}
+      afterSignOutUrl={`${launcherUrl}/auth/login`}
     >
       <html lang="en" suppressHydrationWarning>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
