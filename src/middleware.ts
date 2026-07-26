@@ -5,6 +5,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/auth/google/callback(.*)",
+  "/__clerk/(.*)",
 ]);
 
 const isAuthPage = createRouteMatcher([
