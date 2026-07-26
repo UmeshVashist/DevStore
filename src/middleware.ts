@@ -13,35 +13,19 @@ const isAuthPage = createRouteMatcher([
   "/sign-up(.*)",
 ]);
 
-export default clerkMiddleware(
-  async (auth, request) => {
-    const { userId } = await auth();
-    const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
+export default clerkMiddleware(async (auth, request) => {
+  const { userId } = await auth();
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
 
-    // Already signed in → go to dashboard
-    if (userId && isAuthPage(request)) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
-
-    if (!isPublicRoute(request) && !isApiRoute) {
-      await auth.protect();
-    }
-  },
-  (req) => {
-    const host = req.nextUrl.host;
-    const isLocalhost = host.includes("localhost");
-    const rawDomain = isLocalhost ? host : process.env.NEXT_PUBLIC_CLERK_DOMAIN;
-    const domain = rawDomain ? rawDomain.replace(/^https?:\/\//, "") : undefined;
-    return {
-      isSatellite: process.env.NEXT_PUBLIC_CLERK_IS_SATELLITE === "true",
-      domain,
-      satelliteAutoSync: true,
-      signInUrl: isLocalhost 
-        ? "http://localhost:3000/auth/login" 
-        : process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
-    };
+  // Already signed in → go to dashboard
+  if (userId && isAuthPage(request)) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
-);
+
+  if (!isPublicRoute(request) && !isApiRoute) {
+    await auth.protect();
+  }
+});
 
 export const config = {
   matcher: [
