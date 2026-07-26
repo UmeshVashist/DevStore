@@ -36,7 +36,8 @@ export default async function RootLayout({
   const isLocalhost = host.includes("localhost");
 
   const isSatellite = process.env.NEXT_PUBLIC_CLERK_IS_SATELLITE === "true";
-  const domain = isLocalhost ? host : process.env.NEXT_PUBLIC_CLERK_DOMAIN;
+  const rawDomain = isLocalhost ? host : process.env.NEXT_PUBLIC_CLERK_DOMAIN;
+  const domain = rawDomain ? rawDomain.replace(/^https?:\/\//, "") : undefined;
   const signInUrl = isLocalhost 
     ? "http://localhost:3000/auth/login" 
     : process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL;

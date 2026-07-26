@@ -30,9 +30,11 @@ export default clerkMiddleware(
   (req) => {
     const host = req.nextUrl.host;
     const isLocalhost = host.includes("localhost");
+    const rawDomain = isLocalhost ? host : process.env.NEXT_PUBLIC_CLERK_DOMAIN;
+    const domain = rawDomain ? rawDomain.replace(/^https?:\/\//, "") : undefined;
     return {
       isSatellite: process.env.NEXT_PUBLIC_CLERK_IS_SATELLITE === "true",
-      domain: isLocalhost ? host : process.env.NEXT_PUBLIC_CLERK_DOMAIN,
+      domain,
       satelliteAutoSync: true,
       signInUrl: isLocalhost 
         ? "http://localhost:3000/auth/login" 
