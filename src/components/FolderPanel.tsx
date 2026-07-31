@@ -45,6 +45,28 @@ export function FolderPanel({
     }
   }, [activeDriveEmail]);
 
+  // Filter folders according to target drives (if "auto", show all folders)
+  const availableUploadFolders = uploadDrive === "auto"
+    ? folders
+    : folders.filter((f) => f.driveEmail === uploadDrive);
+
+  const availableCreateFolders = createDrive === "auto"
+    ? folders
+    : folders.filter((f) => f.driveEmail === createDrive);
+
+  // If selected folder is not in filtered folders, reset to root
+  useEffect(() => {
+    if (uploadTarget !== "root" && !availableUploadFolders.some((f) => f.id === uploadTarget)) {
+      setUploadTarget("root");
+    }
+  }, [uploadDrive, availableUploadFolders, uploadTarget]);
+
+  useEffect(() => {
+    if (createParentId !== "root" && !availableCreateFolders.some((f) => f.id === createParentId)) {
+      setCreateParentId("root");
+    }
+  }, [createDrive, availableCreateFolders, createParentId]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!folderName.trim()) return;
@@ -111,7 +133,7 @@ export function FolderPanel({
       <div className="flex flex-col md:flex-row items-end gap-4 w-full">
         <div className="flex-1 w-full">
           <FolderSelector
-            folders={folders}
+            folders={availableUploadFolders}
             value={uploadTarget}
             onChange={setUploadTarget}
             label="Upload folder to:"
@@ -121,33 +143,18 @@ export function FolderPanel({
           <label className="block text-slate-600 dark:text-slate-400 text-sm mb-2 font-bold">
             Upload Target Drive:
           </label>
-          {uploadTarget !== "root" ? (
-            <div className="glass-neo-in w-full px-4 py-2 text-indigo-600 dark:text-indigo-300 rounded-xl text-sm font-bold truncate flex items-center gap-1.5 cursor-not-allowed border border-indigo-500/10">
-              <span>☁️</span>
-              <span className="truncate">
-                {(() => {
-                  const targetFolder = folders.find(f => f.id === uploadTarget);
-                  const folderEmail = targetFolder?.driveEmail;
-                  const driveAcc = accounts?.find(a => a.email === folderEmail);
-                  return driveAcc?.name || folderEmail || "Unknown Drive";
-                })()}
-              </span>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal shrink-0">(Fixed by folder)</span>
-            </div>
-          ) : (
-            <CustomDropdown
-              options={[
-                ...(activeDriveEmail === "all" ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }] : []),
-                ...(accounts || []).map((acc) => ({
-                  value: acc.email,
-                  label: acc.name || acc.email,
-                  icon: "📧",
-                })),
-              ]}
-              value={uploadDrive}
-              onChange={setUploadDrive}
-            />
-          )}
+          <CustomDropdown
+            options={[
+              ...(activeDriveEmail === "all" ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }] : []),
+              ...(accounts || []).map((acc) => ({
+                value: acc.email,
+                label: acc.name || acc.email,
+                icon: "📧",
+              })),
+            ]}
+            value={uploadDrive}
+            onChange={setUploadDrive}
+          />
         </div>
       </div>
 
@@ -164,7 +171,7 @@ export function FolderPanel({
           <div className="flex flex-col md:flex-row items-end gap-4 w-full">
             <div className="flex-1 w-full">
               <FolderSelector
-                folders={folders}
+                folders={availableCreateFolders}
                 value={createParentId}
                 onChange={setCreateParentId}
                 label="Create folder in:"
@@ -174,33 +181,18 @@ export function FolderPanel({
               <label className="block text-slate-600 dark:text-slate-400 text-sm mb-2 font-bold">
                 Create Target Drive:
               </label>
-              {createParentId !== "root" ? (
-                <div className="glass-neo-in w-full px-4 py-2 text-indigo-600 dark:text-indigo-300 rounded-xl text-sm font-bold truncate flex items-center gap-1.5 cursor-not-allowed border border-indigo-500/10">
-                  <span>☁️</span>
-                  <span className="truncate">
-                    {(() => {
-                      const targetFolder = folders.find(f => f.id === createParentId);
-                      const folderEmail = targetFolder?.driveEmail;
-                      const driveAcc = accounts?.find(a => a.email === folderEmail);
-                      return driveAcc?.name || folderEmail || "Unknown Drive";
-                    })()}
-                  </span>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal shrink-0">(Fixed by folder)</span>
-                </div>
-              ) : (
-                <CustomDropdown
-                  options={[
-                    ...(activeDriveEmail === "all" ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }] : []),
-                    ...(accounts || []).map((acc) => ({
-                      value: acc.email,
-                      label: acc.name || acc.email,
-                      icon: "📧",
-                    })),
-                  ]}
-                  value={createDrive}
-                  onChange={setCreateDrive}
-                />
-              )}
+              <CustomDropdown
+                options={[
+                  ...(activeDriveEmail === "all" ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }] : []),
+                  ...(accounts || []).map((acc) => ({
+                    value: acc.email,
+                    label: acc.name || acc.email,
+                    icon: "📧",
+                  })),
+                ]}
+                value={createDrive}
+                onChange={setCreateDrive}
+              />
             </div>
           </div>
           <form onSubmit={handleCreate} className="flex gap-2">

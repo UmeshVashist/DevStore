@@ -102,6 +102,18 @@ export function FileUploader({
     }
   }, [activeDriveEmail]);
 
+  // Filter folders according to selected upload drive (if "auto", show all folders)
+  const availableFolders = uploadDrive === "auto"
+    ? folders
+    : folders.filter((f) => f.driveEmail === uploadDrive);
+
+  // If selected folder is not in the filtered drive folders, reset to root
+  useEffect(() => {
+    if (selectedFolder !== "root" && !availableFolders.some((f) => f.id === selectedFolder)) {
+      setSelectedFolder("root");
+    }
+  }, [uploadDrive, availableFolders, selectedFolder]);
+
   const handleDropFiles = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
@@ -174,7 +186,7 @@ export function FileUploader({
       <div className="flex flex-col md:flex-row items-end gap-4 w-full">
         <div className="flex-1 w-full">
           <FolderSelector
-            folders={folders}
+            folders={availableFolders}
             value={selectedFolder}
             onChange={setSelectedFolder}
             label="Upload to destination:"
@@ -184,33 +196,18 @@ export function FileUploader({
           <label className="block text-slate-600 dark:text-slate-400 text-sm mb-2 font-bold">
             Upload Target Drive:
           </label>
-          {selectedFolder !== "root" ? (
-            <div className="glass-neo-in w-full px-4 py-2 text-indigo-600 dark:text-indigo-300 rounded-xl text-sm font-bold truncate flex items-center gap-1.5 cursor-not-allowed border border-indigo-500/10">
-              <span>☁️</span>
-              <span className="truncate">
-                {(() => {
-                  const targetFolder = folders.find(f => f.id === selectedFolder);
-                  const folderEmail = targetFolder?.driveEmail;
-                  const driveAcc = accounts?.find(a => a.email === folderEmail);
-                  return driveAcc?.name || folderEmail || "Unknown Drive";
-                })()}
-              </span>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal shrink-0">(Fixed by folder)</span>
-            </div>
-          ) : (
-            <CustomDropdown
-              options={[
-                ...(activeDriveEmail === "all" ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }] : []),
-                ...(accounts || []).map((acc) => ({
-                  value: acc.email,
-                  label: acc.name || acc.email,
-                  icon: "📧",
-                })),
-              ]}
-              value={uploadDrive}
-              onChange={setUploadDrive}
-            />
-          )}
+          <CustomDropdown
+            options={[
+              ...(activeDriveEmail === "all" ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }] : []),
+              ...(accounts || []).map((acc) => ({
+                value: acc.email,
+                label: acc.name || acc.email,
+                icon: "📧",
+              })),
+            ]}
+            value={uploadDrive}
+            onChange={setUploadDrive}
+          />
         </div>
       </div>
 
