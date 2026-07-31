@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { FolderPlus, FolderUp, Loader2, X } from "lucide-react";
 import { DriveFolder } from "@/lib/file-types";
 import { FolderSelector } from "./FolderSelector";
+import { CustomDropdown } from "./CustomDropdown";
 
 interface FolderPanelProps {
   folders: DriveFolder[];
   uploading: boolean;
-  onCreateFolder: (name: string, parentId?: string) => Promise<void>;
-  onUploadFolder: (files: FileList, folderId: string) => Promise<void>;
+  onCreateFolder: (name: string, parentId?: string, driveEmail?: string) => Promise<void>;
+  onUploadFolder: (files: FileList | File[], folderId: string, driveEmail?: string) => Promise<void>;
   onRefresh: () => void;
+  accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
+  activeDriveEmail?: string;
 }
 
 export function FolderPanel({
@@ -19,6 +22,8 @@ export function FolderPanel({
   uploading,
   onCreateFolder,
   onUploadFolder,
+  accounts = [],
+  activeDriveEmail = "all",
 }: FolderPanelProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [folderName, setFolderName] = useState("");
@@ -26,12 +31,30 @@ export function FolderPanel({
   const [uploadTarget, setUploadTarget] = useState("root");
   const [createParentId, setCreateParentId] = useState("root");
 
+  // Local target drive states for folder uploading & creation
+  const [uploadDrive, setUploadDrive] = useState<string>("auto");
+  const [createDrive, setCreateDrive] = useState<string>("auto");
+
+  useEffect(() => {
+    if (activeDriveEmail && activeDriveEmail !== "all") {
+      setUploadDrive(activeDriveEmail);
+      setCreateDrive(activeDriveEmail);
+    } else {
+      setUploadDrive("auto");
+      setCreateDrive("auto");
+    }
+  }, [activeDriveEmail]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!folderName.trim()) return;
     setCreating(true);
     try {
-      await onCreateFolder(folderName.trim(), createParentId === "root" ? undefined : createParentId);
+      const targetParent = createParentId === "root" ? undefined : createParentId;
+      const targetEmail = createParentId !== "root"
+        ? folders.find(f => f.id === createParentId)?.driveEmail
+        : (createDrive === "auto" ? undefined : createDrive);
+      await onCreateFolder(folderName.trim(), targetParent, targetEmail);
       setFolderName("");
       setShowCreate(false);
       setCreateParentId("root");
@@ -42,7 +65,10 @@ export function FolderPanel({
 
   const handleFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      await onUploadFolder(e.target.files, uploadTarget);
+      const folderEmail = uploadTarget !== "root"
+        ? folders.find(f => f.id === uploadTarget)?.driveEmail
+        : (uploadDrive === "auto" ? undefined : uploadDrive);
+      await onUploadFolder(e.target.files, uploadTarget, folderEmail);
       e.target.value = "";
     }
   };
@@ -82,12 +108,48 @@ export function FolderPanel({
         </label>
       </div>
 
-      <FolderSelector
-        folders={folders}
-        value={uploadTarget}
-        onChange={setUploadTarget}
-        label="Upload folder to:"
-      />
+      <div className="flex flex-col md:flex-row items-end gap-4 w-full">
+        <div className="flex-1 w-full">
+          <FolderSelector
+            folders={folders}
+            value={uploadTarget}
+            onChange={setUploadTarget}
+            label="Upload folder to:"
+          />
+        </div>
+        <div className="w-full md:w-64">
+          <label className="block text-slate-600 dark:text-slate-400 text-sm mb-2 font-bold">
+            Upload Target Drive:
+          </label>
+          {uploadTarget !== "root" ? (
+            <div className="glass-neo-in w-full px-4 py-2 text-indigo-600 dark:text-indigo-300 rounded-xl text-sm font-bold truncate flex items-center gap-1.5 cursor-not-allowed border border-indigo-500/10">
+              <span>☁️</span>
+              <span className="truncate">
+                {(() => {
+                  const targetFolder = folders.find(f => f.id === uploadTarget);
+                  const folderEmail = targetFolder?.driveEmail;
+                  const driveAcc = accounts?.find(a => a.email === folderEmail);
+                  return driveAcc?.name || folderEmail || "Unknown Drive";
+                })()}
+              </span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal shrink-0">(Fixed by folder)</span>
+            </div>
+          ) : (
+            <CustomDropdown
+              options={[
+                ...(activeDriveEmail === "all" ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }] : []),
+                ...(accounts || []).map((acc) => ({
+                  value: acc.email,
+                  label: acc.name || acc.email,
+                  icon: "📧",
+                })),
+              ]}
+              value={uploadDrive}
+              onChange={setUploadDrive}
+            />
+          )}
+        </div>
+      </div>
 
       <p className="text-slate-400 dark:text-slate-500 text-xs font-semibold mt-2">
         Uploading a folder preserves all subfolders and files inside it.
@@ -99,12 +161,48 @@ export function FolderPanel({
           animate={{ opacity: 1, height: "auto" }}
           className="mt-6 pt-6 border-t border-slate-200/40 dark:border-white/10 space-y-4"
         >
-          <FolderSelector
-            folders={folders}
-            value={createParentId}
-            onChange={setCreateParentId}
-            label="Create folder in:"
-          />
+          <div className="flex flex-col md:flex-row items-end gap-4 w-full">
+            <div className="flex-1 w-full">
+              <FolderSelector
+                folders={folders}
+                value={createParentId}
+                onChange={setCreateParentId}
+                label="Create folder in:"
+              />
+            </div>
+            <div className="w-full md:w-64">
+              <label className="block text-slate-600 dark:text-slate-400 text-sm mb-2 font-bold">
+                Create Target Drive:
+              </label>
+              {createParentId !== "root" ? (
+                <div className="glass-neo-in w-full px-4 py-2 text-indigo-600 dark:text-indigo-300 rounded-xl text-sm font-bold truncate flex items-center gap-1.5 cursor-not-allowed border border-indigo-500/10">
+                  <span>☁️</span>
+                  <span className="truncate">
+                    {(() => {
+                      const targetFolder = folders.find(f => f.id === createParentId);
+                      const folderEmail = targetFolder?.driveEmail;
+                      const driveAcc = accounts?.find(a => a.email === folderEmail);
+                      return driveAcc?.name || folderEmail || "Unknown Drive";
+                    })()}
+                  </span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal shrink-0">(Fixed by folder)</span>
+                </div>
+              ) : (
+                <CustomDropdown
+                  options={[
+                    ...(activeDriveEmail === "all" ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }] : []),
+                    ...(accounts || []).map((acc) => ({
+                      value: acc.email,
+                      label: acc.name || acc.email,
+                      icon: "📧",
+                    })),
+                  ]}
+                  value={createDrive}
+                  onChange={setCreateDrive}
+                />
+              )}
+            </div>
+          </div>
           <form onSubmit={handleCreate} className="flex gap-2">
             <input
               type="text"

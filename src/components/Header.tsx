@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
-import { Cloud, Database } from "lucide-react";
+import { Cloud, Database, Clock, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
 import { ThemeToggle } from "./ThemeToggle";
 import { APP_NAME } from "@/lib/constants";
 import { CustomDropdown } from "./CustomDropdown";
+import { cn } from "@/lib/utils";
 
 function formatBytes(bytesStr: string | undefined): string {
   if (!bytesStr) return "0 B";
@@ -56,6 +57,29 @@ export function Header({
   const usedText = formatBytes(quota?.usage);
   const limitText = quota?.limit ? formatBytes(quota.limit) : "Unlimited";
 
+  const getDriveExpiryInfo = () => {
+    if (!accounts || accounts.length === 0) return null;
+    
+    const targetAccounts = (activeDrive && activeDrive !== "all") 
+      ? accounts.filter(a => a.email.toLowerCase() === activeDrive.toLowerCase())
+      : accounts;
+
+    if (targetAccounts.length === 0) return null;
+
+    const accountExpiries = targetAccounts.map(acc => {
+      if (acc.expired) return { acc, daysLeft: 0 };
+      const connectedDate = acc.connectedAt ? new Date(acc.connectedAt) : new Date();
+      const daysPassed = Math.floor((Date.now() - connectedDate.getTime()) / (1000 * 60 * 60 * 24));
+      const daysLeft = Math.max(0, 7 - daysPassed);
+      return { acc, daysLeft };
+    });
+
+    accountExpiries.sort((a, b) => a.daysLeft - b.daysLeft);
+    return accountExpiries[0];
+  };
+
+  const expiryInfo = getDriveExpiryInfo();
+
   return (
     <motion.header
       initial={{ y: -20, opacity: 0 }}
@@ -99,7 +123,33 @@ export function Header({
         </div>
       )}
 
-      <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
+      <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 w-full md:w-auto">
+        {expiryInfo && (
+          <a
+            href="/setup/drive"
+            title="Click to view or reconnect Google Drive accounts"
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm hover:scale-105 shrink-0",
+              expiryInfo.daysLeft <= 0 || expiryInfo.acc.expired
+                ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/20 animate-pulse"
+                : expiryInfo.daysLeft <= 2
+                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+                : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20"
+            )}
+          >
+            {expiryInfo.daysLeft <= 0 || expiryInfo.acc.expired ? (
+              <AlertTriangle className="w-3.5 h-3.5" />
+            ) : (
+              <Clock className="w-3.5 h-3.5" />
+            )}
+            <span>
+              {expiryInfo.daysLeft <= 0 || expiryInfo.acc.expired
+                ? "Drive Expired! Reconnect"
+                : `${expiryInfo.daysLeft}d left to expire`}
+            </span>
+          </a>
+        )}
+
         {accounts.length > 0 && (
           <CustomDropdown
             options={[

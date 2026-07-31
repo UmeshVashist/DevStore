@@ -932,6 +932,8 @@ export function Dashboard() {
               onCreateFolder={handleCreateFolder}
               onUploadFolder={handleUploadFolder}
               onRefresh={fetchAll}
+              accounts={accounts}
+              activeDriveEmail={activeDriveEmail}
             />
           </div>
         )}
