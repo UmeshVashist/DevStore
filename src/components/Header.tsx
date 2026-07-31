@@ -57,35 +57,19 @@ export function Header({
   const usedText = formatBytes(quota?.usage);
   const limitText = quota?.limit ? formatBytes(quota.limit) : "Unlimited";
 
-  const getDriveExpiryInfo = () => {
-    if (!accounts || accounts.length === 0) return null;
-    
-    const targetAccounts = (activeDrive && activeDrive !== "all") 
-      ? accounts.filter(a => a.email.toLowerCase() === activeDrive.toLowerCase())
-      : accounts;
+  const targetAccounts = (activeDrive && activeDrive !== "all") 
+    ? accounts.filter(a => a.email.toLowerCase() === activeDrive.toLowerCase())
+    : accounts;
 
-    if (targetAccounts.length === 0) return null;
-
-    const accountExpiries = targetAccounts.map(acc => {
-      if (acc.expired) return { acc, daysLeft: 0 };
-      const connectedDate = acc.connectedAt ? new Date(acc.connectedAt) : new Date();
-      const daysPassed = Math.floor((Date.now() - connectedDate.getTime()) / (1000 * 60 * 60 * 24));
-      const daysLeft = Math.max(0, 7 - daysPassed);
-      return { acc, daysLeft };
-    });
-
-    accountExpiries.sort((a, b) => a.daysLeft - b.daysLeft);
-    return accountExpiries[0];
-  };
-
-  const expiryInfo = getDriveExpiryInfo();
+  const expiredAccount = targetAccounts.find(a => a.expired === true);
+  const activeAccount = targetAccounts.find(a => !a.expired);
 
   return (
     <motion.header
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="glass-neo-out rounded-2xl px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 mb-8 relative z-50"
+      className="glass-neo-out rounded-2xl px-6 py-3.5 flex flex-col md:flex-row items-center justify-between gap-4 mb-8 relative z-50"
     >
       <a
         href={`${process.env.NEXT_PUBLIC_LAUNCHER_URL || "http://localhost:3000"}/dashboard`}
@@ -107,49 +91,40 @@ export function Header({
       </a>
 
       {quota && (
-        <div className="flex flex-col items-center gap-1.5 max-w-xs w-full px-4">
+        <div className="flex flex-col items-center gap-1 max-w-xs w-full px-4">
           <div className="flex justify-between w-full text-[11px] text-slate-500 dark:text-slate-400">
             <span>Used: <span className="font-semibold text-slate-800 dark:text-white">{usedText}</span> of <span className="font-semibold text-slate-800 dark:text-white">{limitText}</span></span>
             <span>{limitVal > 0 ? `${percentage}%` : ""}</span>
           </div>
           {limitVal > 0 && (
-            <div className="w-full h-2.5 bg-slate-200/60 dark:bg-black/30 rounded-full overflow-hidden border border-slate-300/40 dark:border-white/5 relative shadow-inner">
+            <div className="w-full h-2 bg-slate-200/60 dark:bg-black/30 rounded-full overflow-hidden border border-slate-300/40 dark:border-white/5 relative shadow-inner">
               <div
                 className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500"
                 style={{ width: `${percentage}%` }}
               />
             </div>
           )}
+
+          {/* Expiry / Active Status Notification directly under Drive Size bar */}
+          {expiredAccount ? (
+            <a
+              href="/setup/drive"
+              title="Click to reconnect expired Google Drive account"
+              className="flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-all animate-pulse"
+            >
+              <AlertTriangle className="w-3 h-3" />
+              <span>Drive Expired! Reconnect</span>
+            </a>
+          ) : (
+            <div className="flex items-center gap-1 mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+              <Clock className="w-3 h-3 text-emerald-500" />
+              <span>Drive Connected (Active)</span>
+            </div>
+          )}
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 w-full md:w-auto">
-        {expiryInfo && (
-          <a
-            href="/setup/drive"
-            title="Click to view or reconnect Google Drive accounts"
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm hover:scale-105 shrink-0",
-              expiryInfo.daysLeft <= 0 || expiryInfo.acc.expired
-                ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/20 animate-pulse"
-                : expiryInfo.daysLeft <= 2
-                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
-                : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20"
-            )}
-          >
-            {expiryInfo.daysLeft <= 0 || expiryInfo.acc.expired ? (
-              <AlertTriangle className="w-3.5 h-3.5" />
-            ) : (
-              <Clock className="w-3.5 h-3.5" />
-            )}
-            <span>
-              {expiryInfo.daysLeft <= 0 || expiryInfo.acc.expired
-                ? "Drive Expired! Reconnect"
-                : `${expiryInfo.daysLeft}d left to expire`}
-            </span>
-          </a>
-        )}
-
+      <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
         {accounts.length > 0 && (
           <CustomDropdown
             options={[
