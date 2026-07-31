@@ -115,23 +115,38 @@ export function Header({
               <AlertTriangle className="w-3 h-3" />
               <span>Drive Expired! Reconnect</span>
             </a>
-          ) : activeAccount ? (
-            <a
-              href="/setup/drive"
-              title="Click to view connected Google Drive account details"
-              className="flex items-center gap-1 mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium hover:underline transition-all"
-            >
-              <Clock className="w-3 h-3 text-emerald-500" />
-              <span>
-                Drive Connected (Active) • {(() => {
-                  const connectedDate = activeAccount.connectedAt ? new Date(activeAccount.connectedAt) : new Date();
-                  const daysPassed = Math.floor((Date.now() - connectedDate.getTime()) / (1000 * 60 * 60 * 24));
-                  const daysLeft = Math.max(0, 7 - daysPassed);
-                  return `${daysLeft}d left`;
-                })()}
-              </span>
-            </a>
-          ) : null}
+          ) : activeAccount ? (() => {
+            const connectedDate = activeAccount.connectedAt ? new Date(activeAccount.connectedAt) : new Date();
+            const daysPassed = Math.floor((Date.now() - connectedDate.getTime()) / (1000 * 60 * 60 * 24));
+            const daysLeft = Math.max(0, 30 - daysPassed);
+            const isUrgent = daysLeft <= 3;
+            const isWarning = daysLeft > 3 && daysLeft <= 7;
+
+            return (
+              <a
+                href="/setup/drive"
+                title="Click to view connected Google Drive account details"
+                className="flex items-center gap-1 mt-0.5 text-[10px] hover:underline transition-all"
+              >
+                <Clock className={cn("w-3 h-3", isUrgent ? "text-red-500 animate-pulse" : isWarning ? "text-amber-500" : "text-emerald-500")} />
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                  Drive Connected (Active) •{" "}
+                  <span
+                    className={cn(
+                      "font-bold",
+                      isUrgent
+                        ? "text-red-600 dark:text-red-400 bg-red-500/10 px-1 rounded border border-red-500/30 animate-pulse"
+                        : isWarning
+                        ? "text-amber-600 dark:text-amber-400 font-bold"
+                        : "text-emerald-600 dark:text-emerald-400"
+                    )}
+                  >
+                    {daysLeft}d left
+                  </span>
+                </span>
+              </a>
+            );
+          })() : null}
         </div>
       )}
 
