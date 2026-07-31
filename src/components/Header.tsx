@@ -115,12 +115,23 @@ export function Header({
               <AlertTriangle className="w-3 h-3" />
               <span>Drive Expired! Reconnect</span>
             </a>
-          ) : (
-            <div className="flex items-center gap-1 mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+          ) : activeAccount ? (
+            <a
+              href="/setup/drive"
+              title="Click to view connected Google Drive account details"
+              className="flex items-center gap-1 mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium hover:underline transition-all"
+            >
               <Clock className="w-3 h-3 text-emerald-500" />
-              <span>Drive Connected (Active)</span>
-            </div>
-          )}
+              <span>
+                Drive Connected (Active) • {(() => {
+                  const connectedDate = activeAccount.connectedAt ? new Date(activeAccount.connectedAt) : new Date();
+                  const daysPassed = Math.floor((Date.now() - connectedDate.getTime()) / (1000 * 60 * 60 * 24));
+                  const daysLeft = Math.max(0, 7 - daysPassed);
+                  return `${daysLeft}d left`;
+                })()}
+              </span>
+            </a>
+          ) : null}
         </div>
       )}
 
