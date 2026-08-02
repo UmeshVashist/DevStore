@@ -228,16 +228,25 @@ function SetupContent() {
                               Reconnect
                             </a>
                           ) : (
-                            <button
-                              onClick={() => {
-                                setSelectedRenameAccount(acc);
-                                setNewAccountAlias(acc.name || acc.email);
-                              }}
-                              className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
-                              title="Edit Alias"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
+                            <>
+                              <a
+                                href="/api/auth/google"
+                                className="text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 px-2.5 py-1.5 rounded-lg transition-all font-bold whitespace-nowrap"
+                                title="Reconnect to refresh 30-day active session"
+                              >
+                                Reconnect
+                              </a>
+                              <button
+                                onClick={() => {
+                                  setSelectedRenameAccount(acc);
+                                  setNewAccountAlias(acc.name || acc.email);
+                                }}
+                                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
+                                title="Edit Alias"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                            </>
                           )}
                           <button
                             onClick={async () => {

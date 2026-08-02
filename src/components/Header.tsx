@@ -117,8 +117,9 @@ export function Header({
             </a>
           ) : activeAccount ? (() => {
             const connectedDate = activeAccount.connectedAt ? new Date(activeAccount.connectedAt) : new Date();
-            const daysPassed = Math.floor((Date.now() - connectedDate.getTime()) / (1000 * 60 * 60 * 24));
-            const daysLeft = Math.max(0, 30 - daysPassed);
+            const validTime = !isNaN(connectedDate.getTime()) ? connectedDate.getTime() : Date.now();
+            const daysPassed = Math.floor((Date.now() - validTime) / (1000 * 60 * 60 * 24));
+            const daysLeft = Math.max(0, Math.min(30, 30 - daysPassed));
             const isUrgent = daysLeft <= 3;
             const isWarning = daysLeft > 3 && daysLeft <= 7;
 

@@ -162,7 +162,8 @@ export async function saveRefreshToken(refreshToken: string, email?: string, use
     refresh_token: refreshToken,
     email,
     name: existingAccount?.name || undefined,
-    connected_at: existingAccount?.connected_at || new Date().toISOString(),
+    connected_at: new Date().toISOString(),
+    expired: false,
   };
 
   if (existingIndex >= 0) {
