@@ -92,7 +92,7 @@ export function getStoredAccounts(userId?: string): GoogleOAuthStore[] {
     accounts = accounts.map(acc => {
       const localAcc = localAccounts.find(l => l.email?.toLowerCase() === acc.email?.toLowerCase());
       if (localAcc) {
-        let newAcc = { ...acc };
+        const newAcc = { ...acc };
         if (localAcc.expired) {
           newAcc.expired = true;
         }
