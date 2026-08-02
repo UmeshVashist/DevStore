@@ -229,10 +229,28 @@ function SetupContent() {
                             </a>
                           ) : (
                             <>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch("/api/drive/refresh-session", {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ email: acc.email }),
+                                    });
+                                    if (res.ok) {
+                                      window.location.reload();
+                                    }
+                                  } catch {}
+                                }}
+                                className="text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg transition-all font-bold whitespace-nowrap"
+                                title="Click to refresh 30-day timer"
+                              >
+                                Refresh 30d
+                              </button>
                               <a
                                 href="/api/auth/google"
                                 className="text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 px-2.5 py-1.5 rounded-lg transition-all font-bold whitespace-nowrap"
-                                title="Reconnect to refresh 30-day active session"
+                                title="Full Google OAuth Reconnect"
                               >
                                 Reconnect
                               </a>

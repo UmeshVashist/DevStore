@@ -85,16 +85,33 @@ export function getStoredAccounts(userId?: string): GoogleOAuthStore[] {
     }
   }
 
-  // 3. Sync expired flag from local file to ensure Clerk rate limits don't mask expiration state locally
+  // 3. Sync expired flag & connected_at from local file to ensure local updates take effect
   if (process.env.NODE_ENV !== "production" && accounts.length > 0) {
     const localAccounts = getLocalFileAccounts();
+    let updated = false;
     accounts = accounts.map(acc => {
       const localAcc = localAccounts.find(l => l.email?.toLowerCase() === acc.email?.toLowerCase());
-      if (localAcc && localAcc.expired) {
-        return { ...acc, expired: true };
+      if (localAcc) {
+        let newAcc = { ...acc };
+        if (localAcc.expired) {
+          newAcc.expired = true;
+        }
+        if (localAcc.connected_at) {
+          const localTime = new Date(localAcc.connected_at).getTime();
+          const clerkTime = new Date(acc.connected_at || 0).getTime();
+          if (!isNaN(localTime) && (isNaN(clerkTime) || localTime > clerkTime)) {
+            newAcc.connected_at = localAcc.connected_at;
+            updated = true;
+          }
+        }
+        return newAcc;
       }
       return acc;
     });
+
+    if (updated && resolvedUserId) {
+      accountsCache.set(resolvedUserId, accounts);
+    }
   }
 
   return accounts;
@@ -342,3 +359,51 @@ export function hasOAuthClientCredentials(): boolean {
 }
 
 export const OAUTH_REDIRECT_COOKIE = "devdata_oauth_redirect";
+
+export async function refreshAccountSession(email?: string, userId?: string): Promise<boolean> {
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    try {
+      const authSession = await auth();
+      resolvedUserId = authSession.userId || undefined;
+    } catch {}
+  }
+
+  const accounts = getStoredAccounts(resolvedUserId);
+  if (accounts.length === 0) return false;
+
+  const now = new Date().toISOString();
+  let updated = false;
+
+  accounts.forEach((acc) => {
+    if (!email || email === "all" || acc.email?.toLowerCase() === email.toLowerCase()) {
+      acc.connected_at = now;
+      acc.expired = false;
+      updated = true;
+    }
+  });
+
+  if (!updated) return false;
+
+  if (resolvedUserId) {
+    accountsCache.set(resolvedUserId, accounts);
+    try {
+      const client = await clerkClient();
+      await client.users.updateUserMetadata(resolvedUserId, {
+        privateMetadata: {
+          googleAccounts: accounts,
+        },
+      });
+      console.log("Refreshed Google accounts session in Clerk metadata.");
+    } catch (err) {
+      console.error("Failed to update Clerk metadata during session refresh:", err);
+    }
+  }
+
+  try {
+    const data: GoogleOAuthStoreMulti = { accounts };
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch {}
+
+  return true;
+}
