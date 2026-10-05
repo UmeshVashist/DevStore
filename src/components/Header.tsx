@@ -62,7 +62,13 @@ export function Header({
     : accounts;
 
   const expiredAccount = targetAccounts.find(a => a.expired === true);
-  const activeAccount = targetAccounts.find(a => !a.expired);
+  const activeAccount = [...targetAccounts]
+    .filter(a => !a.expired)
+    .sort((a, b) => {
+      const timeA = a.connectedAt ? new Date(a.connectedAt).getTime() : 0;
+      const timeB = b.connectedAt ? new Date(b.connectedAt).getTime() : 0;
+      return timeA - timeB;
+    })[0];
 
   return (
     <motion.header
@@ -118,19 +124,44 @@ export function Header({
           ) : activeAccount ? (() => {
             const connectedDate = activeAccount.connectedAt ? new Date(activeAccount.connectedAt) : new Date();
             const validTime = !isNaN(connectedDate.getTime()) ? connectedDate.getTime() : Date.now();
-            const daysPassed = Math.floor((Date.now() - validTime) / (1000 * 60 * 60 * 24));
-            const daysLeft = Math.max(0, Math.min(30, 30 - daysPassed));
-            const isUrgent = daysLeft <= 3;
-            const isWarning = daysLeft > 3 && daysLeft <= 7;
+            const TOTAL_DAYS = 7;
+            const EXPIRY_MS = TOTAL_DAYS * 24 * 60 * 60 * 1000;
+            const elapsedMs = Math.max(0, Date.now() - validTime);
+            const remainingMs = EXPIRY_MS - elapsedMs;
+
+            const daysLeft = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60 * 24)));
+            const hoursLeft = Math.max(0, Math.floor(remainingMs / (1000 * 60 * 60)));
+
+            const isExpired = remainingMs <= 0;
+            const isUrgent = remainingMs <= 24 * 60 * 60 * 1000; // <= 1 day left
+            const isWarning = !isUrgent && remainingMs <= 2 * 24 * 60 * 60 * 1000; // <= 2 days left
+
+            if (isExpired) {
+              return (
+                <a
+                  href="/setup/drive"
+                  title="7-day Google Drive session expired. Click to reconnect."
+                  className="flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-all animate-pulse"
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  <span>Drive Expired! Reconnect</span>
+                </a>
+              );
+            }
+
+            const timeText = hoursLeft < 24 ? `${Math.max(1, hoursLeft)}h left` : `${daysLeft}d left`;
 
             return (
               <a
                 href="/setup/drive"
-                title="Click to view connected Google Drive account details"
+                title={`Google Drive connected. Token valid for 7 days (Testing mode). Click to view details or reconnect.`}
                 className="flex items-center gap-1 mt-0.5 text-[10px] hover:underline transition-all"
               >
                 <Clock className={cn("w-3 h-3", isUrgent ? "text-red-500 animate-pulse" : isWarning ? "text-amber-500" : "text-emerald-500")} />
-                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                <span className={cn(
+                  "font-medium",
+                  isUrgent ? "text-red-600 dark:text-red-400" : isWarning ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
+                )}>
                   Drive Connected (Active) •{" "}
                   <span
                     className={cn(
@@ -142,7 +173,7 @@ export function Header({
                         : "text-emerald-600 dark:text-emerald-400"
                     )}
                   >
-                    {daysLeft}d left
+                    {timeText}
                   </span>
                 </span>
               </a>

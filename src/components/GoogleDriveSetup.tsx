@@ -131,13 +131,13 @@ function SetupContent() {
         <div className="glass-neo-out rounded-2xl p-8 border border-slate-200/50 dark:border-white/5">
           <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">Connect Google Drive</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 font-medium">
-            Apna Gmail connect karein taaki files upload ho sakein.
+            Connect your Gmail so that files can be uploaded.
           </p>
 
           {success && status.connected && (
             <div className="flex items-center gap-2 p-3 rounded-xl bg-green-500/10 text-green-600 dark:text-green-300 border border-green-500/20 mb-4 text-sm font-semibold">
               <CheckCircle2 className="w-5 h-5 shrink-0" />
-              Connected successfully! Ab upload kar sakte hain.
+              Connected successfully! You can upload now.
             </div>
           )}
 
@@ -155,8 +155,8 @@ function SetupContent() {
                   {error === "erofs" && (
                     <div className="space-y-3">
                       <p className="font-bold text-amber-600 dark:text-amber-400">Read-Only Filesystem Detected (Vercel/Serverless)</p>
-                      <p>Hum token ko server ki disk par save nahi kar sakte kyunki Vercel read-only hai.</p>
-                      <p>Apne Google account ko connect rakhne ke liye neeche diye gaye Refresh Token ko copy karein aur use apne Vercel Project ke dashboard par environment variable <strong>GOOGLE_OAUTH_REFRESH_TOKEN</strong> ke roop mein add karein:</p>
+                      <p>We cannot save the token on the server&apos;s disk because the token is read-only.</p>
+                      <p>To keep your Google account connected, copy the refresh token below and set it as an environment variable on your Versal project&apos;s dashboard. <strong>GOOGLE_OAUTH_REFRESH_TOKEN</strong> Add as:</p>
                       <div className="flex items-center gap-2 bg-slate-200/60 dark:bg-black/45 rounded-lg p-2 mt-1 border border-slate-300/30 dark:border-white/5 shadow-inner">
                          <code className="text-amber-700 dark:text-amber-200 text-xs flex-1 break-all select-all">{searchParams.get("token")}</code>
                         <button
@@ -171,7 +171,7 @@ function SetupContent() {
                           )}
                         </button>
                       </div>
-                      <p className="text-xs text-slate-400 dark:text-white/40 mt-1">Add karne ke baad Vercel par project redeploy/rebuild karein.</p>
+                      <p className="text-xs text-slate-400 dark:text-white/40 mt-1">After adding it, redeploy/rebuild the project on Vercel.</p>
                     </div>
                   )}
                   {!["missing_client", "no_refresh_token", "no_code", "erofs"].includes(error) &&
@@ -208,11 +208,30 @@ function SetupContent() {
                               </span>
                             )}
                           </div>
-                          {acc.connectedAt && acc.connectedAt !== "env" && (
-                            <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5">
-                              Connected: {new Date(acc.connectedAt).toLocaleDateString()}
-                            </p>
-                          )}
+                          {acc.connectedAt && acc.connectedAt !== "env" && (() => {
+                            const connectedDate = new Date(acc.connectedAt);
+                            const validTime = !isNaN(connectedDate.getTime()) ? connectedDate.getTime() : Date.now();
+                            const elapsedMs = Math.max(0, Date.now() - validTime);
+                            const remainingMs = (7 * 24 * 60 * 60 * 1000) - elapsedMs;
+                            const daysLeft = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60 * 24)));
+                            const hoursLeft = Math.max(0, Math.floor(remainingMs / (1000 * 60 * 60)));
+                            const isExpired = remainingMs <= 0 || acc.expired;
+                            const displayTime = isExpired
+                              ? "Expired"
+                              : hoursLeft < 24
+                              ? `${Math.max(1, hoursLeft)}h left`
+                              : `${daysLeft}d left`;
+
+                            return (
+                              <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                <span>Connected: {connectedDate.toLocaleDateString()}</span>
+                                <span>•</span>
+                                <span className={isExpired || daysLeft <= 1 ? "text-red-500 font-semibold" : daysLeft <= 2 ? "text-amber-500 font-medium" : "text-emerald-500 font-medium"}>
+                                  {displayTime} (7-day Google token)
+                                </span>
+                              </p>
+                            );
+                          })()}
                           {acc.expired && (
                             <p className="text-red-500 dark:text-red-400 text-[10px] mt-1 font-semibold">
                               Google session has expired. Re-authenticate below.
@@ -243,9 +262,9 @@ function SetupContent() {
                                   } catch {}
                                 }}
                                 className="text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg transition-all font-bold whitespace-nowrap"
-                                title="Click to refresh 30-day timer"
+                                title="Click to refresh 7-day timer"
                               >
-                                Refresh 30d
+                                Refresh 7d
                               </button>
                               <a
                                 href="/api/auth/google"
@@ -328,12 +347,11 @@ function SetupContent() {
                     >
                       OAuth consent screen
                     </a>
-                    → App name set karein → <strong className="text-slate-800 dark:text-white">Test users</strong> mein
-                    apna Gmail add karein
+                    → Set app name → <strong className="text-slate-800 dark:text-white">Test users</strong> Add your Gmail to it.
                   </li>
                   <li>
                     Credentials → OAuth Client → <strong className="text-slate-800 dark:text-white">Authorized redirect
-                    URIs</strong> mein ye add karein:
+                    URIs</strong> Add this to..:
                   </li>
                 </ol>
                 {redirectUri && (
@@ -363,7 +381,7 @@ function SetupContent() {
                 </p>
               ) : (
                 <p className="text-amber-600 dark:text-amber-400 text-sm font-semibold">
-                  Client ID & Secret .env.local mein nahi mile.
+                  Client ID & Secret .env.local in not found.
                 </p>
               )}
 
