@@ -6,6 +6,7 @@ import { DriveFile, DriveFolder, DriveItem, isDriveFolder } from "@/lib/file-typ
 import { FileCard } from "./FileCard";
 import { FolderCard } from "./FolderCard";
 import { useState } from "react";
+import { useRecentActivity } from "@/lib/recent-activity";
 
 interface FileGridProps {
   items: DriveItem[];
@@ -49,6 +50,7 @@ export function FileGrid({
   showDriveBadge = false,
 }: FileGridProps) {
   const [search, setSearch] = useState("");
+  const recentMap = useRecentActivity();
 
   const filtered = items.filter((item) =>
     item.name.toLowerCase().includes(search.toLowerCase())
@@ -115,6 +117,7 @@ export function FileGrid({
                 anySelected={anySelected}
                 accounts={accounts}
                 showDriveBadge={showDriveBadge}
+                recentMap={recentMap}
               />
             ) : (
               <FileCard
@@ -137,6 +140,7 @@ export function FileGrid({
                 anySelected={anySelected}
                 accounts={accounts}
                 showDriveBadge={showDriveBadge}
+                recentMap={recentMap}
               />
             )
           )}

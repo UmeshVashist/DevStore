@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, ArrowRightLeft } from "lucide-react";
 import { DriveItem } from "@/lib/file-types";
+import { recordRecentActivity } from "@/lib/recent-activity";
 
 interface MoveCrossDriveModalProps {
   isOpen: boolean;
@@ -73,6 +74,11 @@ export function MoveCrossDriveModal({
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to move items cross-drive");
+      }
+
+      items.forEach((i) => recordRecentActivity(i.id));
+      if (Array.isArray(data?.newIds)) {
+        data.newIds.forEach((id: string) => recordRecentActivity(id));
       }
 
       showToast(

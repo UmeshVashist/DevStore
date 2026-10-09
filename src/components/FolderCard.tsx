@@ -1,11 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { DriveFolder } from "@/lib/file-types";
 import { Folder, RotateCcw, Trash2, Clock, MoreVertical, Scissors, Copy, FolderOpen, Edit2, Download, ArrowRightLeft } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { formatDate, daysUntilPermanentDelete } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { RETENTION_DAYS } from "@/lib/constants";
+import { NewBadge3D } from "./NewBadge3D";
+import { checkRecentStatus } from "@/lib/recent-activity";
 
 interface FolderCardProps {
   folder: DriveFolder;
@@ -26,6 +28,7 @@ interface FolderCardProps {
   anySelected?: boolean;
   accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
   showDriveBadge?: boolean;
+  recentMap?: Record<string, number>;
 }
 
 export function FolderCard({
@@ -47,8 +50,13 @@ export function FolderCard({
   anySelected = false,
   accounts = [],
   showDriveBadge = false,
+  recentMap,
 }: FolderCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { isNew, isUpdated, hoursLeft } = useMemo(
+    () => (!isTrash ? checkRecentStatus(folder, recentMap) : { isNew: false, isUpdated: false, hoursLeft: 0 }),
+    [folder, recentMap, isTrash]
+  );
   const daysLeft = folder.deletedAt
     ? daysUntilPermanentDelete(folder.deletedAt, RETENTION_DAYS)
     : null;
@@ -100,7 +108,16 @@ export function FolderCard({
         </div>
       )}
       <div className="flex items-start gap-3">
-        <FileIcon category="folder" size="md" />
+        <div className="relative shrink-0">
+          <FileIcon category="folder" size="md" />
+          {isNew && (
+            <NewBadge3D
+              isUpdated={isUpdated}
+              hoursLeft={hoursLeft}
+              size="md"
+            />
+          )}
+        </div>
         <div className="flex-1 min-w-0">
           <h3 className="text-slate-800 dark:text-slate-200 font-bold truncate" title={folder.name}>
             {folder.name}

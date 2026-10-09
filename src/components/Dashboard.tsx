@@ -16,6 +16,7 @@ import { downloadFolderAsZip } from "@/lib/folder-download";
 import { FILE_EXTENSIONS, MAX_FILE_SIZE_MB } from "@/lib/constants";
 import { AlertCircle, CheckCircle2, Scissors, Copy, Trash2, RotateCcw, ArrowRightLeft } from "lucide-react";
 import { MoveCrossDriveModal } from "@/components/MoveCrossDriveModal";
+import { recordRecentActivity } from "@/lib/recent-activity";
 
 export function Dashboard() {
   const [items, setItems] = useState<DriveItem[]>([]);
@@ -361,6 +362,7 @@ export function Dashboard() {
                       resolve({ success: true });
                       return;
                     }
+                    recordRecentActivity(fileId);
 
                     // 3. Fetch full metadata from our server for the dashboard
                     const metaRes = await fetch(`/api/files/${fileId}?meta=true&t=${Date.now()}`, {
@@ -483,6 +485,10 @@ export function Dashboard() {
     });
 
     if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data?.folder?.id) {
+        recordRecentActivity(data.folder.id);
+      }
       showToast("success", `Folder "${name}" created`);
       await fetchAll();
     } else {
@@ -548,6 +554,12 @@ export function Dashboard() {
           });
           if (res.ok) {
             successCount++;
+            const data = await res.json().catch(() => ({}));
+            if (data?.item?.id) {
+              recordRecentActivity(data.item.id);
+            } else {
+              recordRecentActivity(item.id);
+            }
           }
         } catch (err) {
           console.error("Paste error:", err);
@@ -814,6 +826,7 @@ export function Dashboard() {
       });
 
       if (res.ok) {
+        recordRecentActivity(item.id);
         showToast("success", `Renamed successfully to "${newName}"`);
         await fetchAll();
       } else {

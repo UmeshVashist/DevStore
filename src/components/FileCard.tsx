@@ -16,8 +16,10 @@ import {
 import { DriveFile } from "@/lib/file-types";
 import { FileIcon } from "./FileIcon";
 import { formatBytes, formatDate, daysUntilPermanentDelete } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { RETENTION_DAYS } from "@/lib/constants";
+import { NewBadge3D } from "./NewBadge3D";
+import { checkRecentStatus } from "@/lib/recent-activity";
 
 interface FileCardProps {
   file: DriveFile;
@@ -38,6 +40,7 @@ interface FileCardProps {
   anySelected?: boolean;
   accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
   showDriveBadge?: boolean;
+  recentMap?: Record<string, number>;
 }
 
 export function FileCard({
@@ -59,8 +62,13 @@ export function FileCard({
   anySelected = false,
   accounts = [],
   showDriveBadge = false,
+  recentMap,
 }: FileCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { isNew, isUpdated, hoursLeft } = useMemo(
+    () => (!isTrash ? checkRecentStatus(file, recentMap) : { isNew: false, isUpdated: false, hoursLeft: 0 }),
+    [file, recentMap, isTrash]
+  );
   const daysLeft = file.deletedAt
     ? daysUntilPermanentDelete(file.deletedAt, RETENTION_DAYS)
     : null;
@@ -112,7 +120,16 @@ export function FileCard({
         </div>
       )}
       <div className="flex items-start gap-3">
-        <FileIcon category={file.category} size="md" />
+        <div className="relative shrink-0">
+          <FileIcon category={file.category} size="md" />
+          {isNew && (
+            <NewBadge3D
+              isUpdated={isUpdated}
+              hoursLeft={hoursLeft}
+              size="md"
+            />
+          )}
+        </div>
         <div className="flex-1 min-w-0 text-left">
           <h3 className="text-slate-800 dark:text-slate-200 font-bold truncate" title={file.name}>
             {file.name}
