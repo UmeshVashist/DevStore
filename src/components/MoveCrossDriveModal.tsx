@@ -107,44 +107,44 @@ export function MoveCrossDriveModal({
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="glass w-full max-w-md rounded-2xl overflow-hidden flex flex-col p-6 shadow-2xl"
+          className="glass-neo-out bg-[#fdfbf7]/95 dark:bg-[#15112e]/95 backdrop-blur-xl border border-slate-200/50 dark:border-white/10 w-full max-w-md rounded-2xl overflow-hidden flex flex-col p-6 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <ArrowRightLeft className="w-5 h-5 text-indigo-400" />
-              <h2 className="text-white font-semibold text-lg">
+              <ArrowRightLeft className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
+              <h2 className="text-slate-800 dark:text-white font-bold text-lg">
                 Move to Another Drive
               </h2>
             </div>
             <button
               onClick={onClose}
-              className="p-1 rounded-lg hover:bg-white/10 transition-colors"
+              className="p-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:text-white/60 dark:hover:text-white transition-colors"
               disabled={loading}
             >
-              <X className="w-5 h-5 text-white/60" />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Description */}
           <div className="mb-4">
-            <p className="text-white/70 text-sm">
-              Moving <strong className="text-white">{items.length} item(s)</strong> will copy them to the target drive and delete them from the source drive.
+            <p className="text-slate-600 dark:text-slate-300 text-sm">
+              Moving <strong className="text-slate-800 dark:text-white font-bold">{items.length} item(s)</strong> will copy them to the target drive and delete them from the source drive.
             </p>
             {sourceEmails.length > 0 && (
-              <p className="text-xs text-white/40 mt-1">
-                Source Drive: <span className="text-indigo-300 font-semibold">{sourceEmails.join(", ")}</span>
+              <p className="text-xs text-slate-500 dark:text-white/40 mt-1">
+                Source Drive: <span className="text-indigo-600 dark:text-indigo-300 font-bold">{sourceEmails.join(", ")}</span>
               </p>
             )}
           </div>
 
           {/* Target Drive List (Max height constraint ensures scrollbar displays with 5+ items) */}
           <div className="space-y-2 mb-4">
-            <label className="text-xs text-white/50 block">Select Target Google Account</label>
+            <label className="text-xs text-slate-600 dark:text-slate-400 font-bold block">Select Target Google Account</label>
             <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1 scrollbar-thin">
               {destinationAccounts.length === 0 ? (
-                <p className="text-sm text-white/40 py-6 text-center italic bg-white/5 rounded-xl border border-white/5">
+                <p className="text-sm text-slate-500 dark:text-white/40 py-6 text-center italic bg-slate-200/40 dark:bg-white/5 rounded-xl border border-slate-200/50 dark:border-white/5">
                   No other connected Google Drive accounts found.
                 </p>
               ) : (
@@ -158,14 +158,14 @@ export function MoveCrossDriveModal({
                       onClick={() => setSelectedTargetEmail(acc.email)}
                       className={`w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between ${
                         isSelected
-                          ? "bg-indigo-600/20 border-indigo-500/60 text-indigo-300 font-semibold shadow-inner"
-                          : "bg-white/5 hover:bg-white/10 border-white/5 text-white/90"
+                          ? "bg-indigo-500/15 border-indigo-500 text-indigo-700 dark:text-indigo-300 font-bold shadow-inner"
+                          : "bg-slate-200/40 hover:bg-slate-200/80 dark:bg-white/5 dark:hover:bg-white/10 border-slate-200/50 dark:border-white/5 text-slate-800 dark:text-white/90"
                       }`}
                       disabled={loading}
                     >
                       <div className="flex flex-col min-w-0">
                         <span className="text-sm font-bold truncate">{driveDisplayName}</span>
-                        <span className="text-xs text-white/40 truncate">{acc.email}</span>
+                        <span className="text-xs text-slate-500 dark:text-white/40 truncate">{acc.email}</span>
                       </div>
                       {isSelected && (
                         <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-white shrink-0">
@@ -181,15 +181,15 @@ export function MoveCrossDriveModal({
             </div>
           </div>
 
-          {error && <p className="text-red-400 text-xs mb-4 font-medium">{error}</p>}
+          {error && <p className="text-red-500 dark:text-red-400 text-xs mb-4 font-semibold">{error}</p>}
 
           {/* Action Buttons */}
-          <div className="flex gap-2 justify-end pt-2 border-t border-white/5">
+          <div className="flex gap-2 justify-end pt-2 border-t border-slate-200/40 dark:border-white/5">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="btn-ghost px-4 py-2 text-sm text-white/70 hover:text-white"
+              className="glass-neo-btn px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-xl border border-slate-200/50 dark:border-white/10 font-bold"
             >
               Cancel
             </button>
@@ -197,7 +197,7 @@ export function MoveCrossDriveModal({
               type="button"
               onClick={handleMove}
               disabled={loading || !selectedTargetEmail}
-              className="btn-primary px-5 py-2 text-sm flex items-center gap-2"
+              className="btn-primary px-5 py-2 text-sm flex items-center gap-2 font-bold"
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {loading ? "Moving..." : "Move Items"}

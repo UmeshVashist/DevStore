@@ -14,7 +14,7 @@ import { BreadcrumbNav } from "@/components/BreadcrumbNav";
 import { GoogleDriveBanner } from "@/components/GoogleDriveSetup";
 import { downloadFolderAsZip } from "@/lib/folder-download";
 import { FILE_EXTENSIONS, MAX_FILE_SIZE_MB } from "@/lib/constants";
-import { AlertCircle, CheckCircle2, Scissors, Copy, Trash2, RotateCcw, ArrowRightLeft } from "lucide-react";
+import { AlertCircle, CheckCircle2, Scissors, Copy, Trash2, RotateCcw, ArrowRightLeft, X } from "lucide-react";
 import { MoveCrossDriveModal } from "@/components/MoveCrossDriveModal";
 import { recordRecentActivity } from "@/lib/recent-activity";
 
@@ -1210,18 +1210,49 @@ export function Dashboard() {
 
         {toast && (
           <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`fixed bottom-6 right-6 z-50 glass rounded-xl px-5 py-3 flex items-center gap-3 shadow-xl max-w-sm ${
-              toast.type === "success" ? "border-green-500/30" : "border-red-500/30"
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className={`fixed bottom-6 right-6 z-50 rounded-2xl px-4 py-3 flex items-center gap-3.5 shadow-2xl max-w-md border backdrop-blur-xl ${
+              toast.type === "success"
+                ? "bg-[#ffffff]/95 dark:bg-[#0c1815]/95 border-emerald-500/40 text-slate-800 dark:text-slate-100 shadow-emerald-500/10"
+                : "bg-[#ffffff]/95 dark:bg-[#1a0808]/95 border-red-500/40 text-slate-800 dark:text-slate-100 shadow-red-500/10"
             }`}
           >
-            {toast.type === "success" ? (
-              <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
-            ) : (
-              <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
-            )}
-            <span className="text-white text-sm">{toast.message}</span>
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                toast.type === "success"
+                  ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-600 dark:text-emerald-400"
+                  : "bg-red-500/15 border-red-500/25 text-red-600 dark:text-red-400"
+              }`}
+            >
+              {toast.type === "success" ? (
+                <CheckCircle2 className="w-5 h-5" />
+              ) : (
+                <AlertCircle className="w-5 h-5" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0 pr-1 text-left">
+              <p
+                className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                  toast.type === "success"
+                    ? "text-emerald-700 dark:text-emerald-400"
+                    : "text-red-700 dark:text-red-400"
+                }`}
+              >
+                {toast.type === "success" ? "Success" : "Error"}
+              </p>
+              <p className="text-slate-800 dark:text-slate-100 text-sm font-semibold leading-snug break-words">
+                {toast.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/10 transition-colors"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </motion.div>
         )}
       </div>

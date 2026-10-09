@@ -62,37 +62,37 @@ export function RenameModal({ item, onClose, onRename }: RenameModalProps) {
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="glass w-full max-w-md rounded-2xl overflow-hidden flex flex-col p-6 shadow-2xl"
+          className="glass-neo-out bg-[#fdfbf7]/95 dark:bg-[#15112e]/95 backdrop-blur-xl border border-slate-200/50 dark:border-white/10 w-full max-w-md rounded-2xl overflow-hidden flex flex-col p-6 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Edit2 className="w-5 h-5 text-indigo-400" />
-              <h2 className="text-white font-semibold text-lg">
+              <Edit2 className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
+              <h2 className="text-slate-800 dark:text-white font-bold text-lg">
                 Rename {isDriveFolder(item) ? "Folder" : "File"}
               </h2>
             </div>
             <button
               onClick={onClose}
-              className="p-1 rounded-lg hover:bg-white/10 transition-colors"
+              className="p-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:text-white/60 dark:hover:text-white transition-colors"
             >
-              <X className="w-5 h-5 text-white/60" />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-xs text-white/50 block mb-1">Name</label>
+              <label className="text-xs text-slate-600 dark:text-slate-400 font-bold block mb-1">Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Enter new name..."
-                className="glass-input w-full px-4 py-2.5 text-white placeholder:text-white/40"
+                className="glass-neo-input w-full px-4 py-2.5 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl outline-none font-semibold"
                 autoFocus
                 disabled={loading}
               />
-              {error && <p className="text-red-400 text-xs mt-1.5">{error}</p>}
+              {error && <p className="text-red-500 dark:text-red-400 text-xs mt-1.5 font-semibold">{error}</p>}
             </div>
 
             <div className="flex gap-2 justify-end pt-2">
@@ -100,7 +100,7 @@ export function RenameModal({ item, onClose, onRename }: RenameModalProps) {
                 type="button"
                 onClick={onClose}
                 disabled={loading}
-                className="btn-ghost px-4 py-2 text-sm text-white/70 hover:text-white"
+                className="glass-neo-btn px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-xl border border-slate-200/50 dark:border-white/10 font-bold"
               >
                 Cancel
               </button>
