@@ -27,7 +27,7 @@ export function Header({
 }: {
   activeDrive?: string;
   onActiveDriveChange?: (email: string) => void;
-  accounts?: Array<{ email: string; connectedAt: string; expired?: boolean }>;
+  accounts?: Array<{ email: string; name?: string; connectedAt: string; expired?: boolean }>;
 }) {
   const [quota, setQuota] = useState<{ limit?: string; usage?: string } | null>(null);
 
@@ -187,15 +187,18 @@ export function Header({
           <CustomDropdown
             options={[
               { value: "all", label: "All Drives", icon: "🌐" },
-              ...accounts.map((acc) => ({
-                value: acc.email,
-                label: acc.expired ? `${acc.email} (Expired)` : acc.email,
-                icon: acc.expired ? "⚠️" : "📧",
-              })),
+              ...accounts.map((acc) => {
+                const displayName = acc.name && acc.name.trim() !== "" ? acc.name : acc.email;
+                return {
+                  value: acc.email,
+                  label: acc.expired ? `${displayName} (Expired)` : displayName,
+                  icon: acc.expired ? "⚠️" : "📧",
+                };
+              }),
             ]}
             value={activeDrive}
             onChange={(val) => onActiveDriveChange?.(val)}
-            className="max-w-[180px] min-w-[140px] py-1.5"
+            className="max-w-[200px] min-w-[140px] py-1.5"
           />
         )}
         <div className="flex items-center gap-3">

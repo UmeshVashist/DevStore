@@ -41,7 +41,7 @@ export function Dashboard() {
   const [moveModalItems, setMoveModalItems] = useState<DriveItem[]>([]);
 
   // Multiple Google Drives support states
-  const [accounts, setAccounts] = useState<Array<{ email: string; connectedAt: string; expired?: boolean }>>([]);
+  const [accounts, setAccounts] = useState<Array<{ email: string; name?: string; connectedAt: string; expired?: boolean }>>([]);
   const [activeDriveEmail, setActiveDriveEmail] = useState<string>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("devdata_active_drive") || "all";
