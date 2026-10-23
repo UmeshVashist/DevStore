@@ -127,7 +127,7 @@ function SetupContent() {
 
   return (
     <div className="min-h-screen p-4 md:p-8 flex items-center justify-center relative">
-      <div className="w-full max-w-lg">
+      <div className="w-full max-w-xl">
         <div className="glass-neo-out rounded-2xl p-8 border border-slate-200/50 dark:border-white/5">
           <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">Connect Google Drive</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 font-medium">
@@ -191,14 +191,14 @@ function SetupContent() {
                 {status.accounts && status.accounts.length > 0 ? (
                   <div className="space-y-3">
                     {status.accounts.map((acc) => (
-                      <div key={acc.email} className={`flex items-center justify-between gap-2 p-3 rounded-lg glass-neo-out border ${acc.expired ? 'border-red-500/35 bg-red-950/5' : 'border-slate-200/30 dark:border-white/5'}`}>
+                      <div key={acc.email} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl glass-neo-out border ${acc.expired ? 'border-red-500/35 bg-red-950/5' : 'border-slate-200/30 dark:border-white/5'}`}>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-800 dark:text-white text-sm font-bold truncate">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-slate-800 dark:text-white text-sm font-bold break-all select-all" title={acc.email}>
                               {acc.name || acc.email}
                             </span>
                             {acc.name && acc.name !== acc.email && (
-                              <span className="text-slate-400 dark:text-slate-500 text-[10px] truncate">
+                              <span className="text-slate-500 dark:text-slate-400 text-xs break-all select-all" title={acc.email}>
                                 ({acc.email})
                               </span>
                             )}
@@ -238,7 +238,7 @@ function SetupContent() {
                             </p>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
                           {acc.expired ? (
                             <a
                               href="/api/auth/google"
@@ -314,7 +314,7 @@ function SetupContent() {
                     ))}
                   </div>
                 ) : (
-                  status.email && <p className="text-slate-600 dark:text-slate-400 text-sm font-medium">{status.email}</p>
+                  status.email && <p className="text-slate-600 dark:text-slate-400 text-sm font-medium break-all select-all">{status.email}</p>
                 )}
               </div>
               <Link href="/" className="btn-primary block text-center shadow-neumorph-btn hover:shadow-neumorph-out py-3">
@@ -410,7 +410,7 @@ function SetupContent() {
           >
             <h3 className="text-slate-800 dark:text-white font-bold text-lg mb-2">Rename Drive Connection</h3>
             <p className="text-slate-500 dark:text-slate-400 text-xs mb-4">
-              Set a custom name/alias for <strong>{selectedRenameAccount.email}</strong> to identify it easily.
+              Set a custom name/alias for <strong className="break-all select-all">{selectedRenameAccount.email}</strong> to identify it easily.
             </p>
             <input
               type="text"
