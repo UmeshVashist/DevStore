@@ -53,7 +53,7 @@ export default async function RootLayout({
       satelliteAutoSync={true}
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
-      afterSignOutUrl={`${launcherUrl}/auth/login`}
+      afterSignOutUrl={`${launcherUrl}/auth/login?logged_out=1`}
     >
       <html lang="en" suppressHydrationWarning>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
