@@ -274,7 +274,7 @@ export function Dashboard() {
     let completedBytes = 0;
 
     const targetEmail =
-      defaultDriveEmail || currentFolderDriveEmail || uploadTargetEmail || activeDriveEmail;
+      currentFolderDriveEmail || uploadTargetEmail || defaultDriveEmail || activeDriveEmail;
 
     try {
       if (withRelativePath) {
@@ -533,7 +533,7 @@ export function Dashboard() {
   ) => uploadFiles(files, folderId, true, driveEmail, slotId);
 
   const handleCreateFolder = async (name: string, parentId?: string, driveEmail?: string) => {
-    const targetEmail = defaultDriveEmail || driveEmail || currentFolderDriveEmail || activeDriveEmail;
+    const targetEmail = currentFolderDriveEmail || driveEmail || defaultDriveEmail || activeDriveEmail;
     const res = await fetch("/api/folders", {
       method: "POST",
       headers: { 
