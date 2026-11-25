@@ -72,9 +72,16 @@ async function resolveDriveEmail(driveEmail?: string, userId?: string): Promise<
     }
   } catch {}
 
-  if (driveEmail === "all") {
+  if (!driveEmail || driveEmail === "all") {
     const accounts = getStoredAccounts(resolvedUserId);
     if (accounts.length === 0) return undefined;
+
+    // If user configured a default drive in Drive Setup, always upload to that drive
+    const defaultAccount = accounts.find((acc) => acc.isDefault && !acc.expired);
+    if (defaultAccount?.email) {
+      return defaultAccount.email;
+    }
+
     if (accounts.length === 1) return accounts[0].email;
 
     // Check storage quota of each and pick the one with the most free bytes

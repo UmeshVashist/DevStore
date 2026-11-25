@@ -14,8 +14,9 @@ interface FileUploaderProps {
   onUploadFolder: (files: FileList | File[], folderId: string, driveEmail?: string, slotId?: string) => Promise<void>;
   uploadSlots: Record<string, number>;
   defaultFolderId?: string | null;
-  accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
+  accounts?: Array<{ email: string; name?: string; connectedAt: string; isDefault?: boolean }>;
   activeDriveEmail?: string;
+  defaultDriveEmail?: string | null;
 }
 
 // Helper to recursively read all entries of a directory reader
@@ -119,22 +120,25 @@ export function FileUploader({
   defaultFolderId,
   accounts = [],
   activeDriveEmail = "all",
+  defaultDriveEmail = null,
 }: FileUploaderProps) {
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState("root");
-  const [uploadDrive, setUploadDrive] = useState<string>("auto");
+  const [uploadDrive, setUploadDrive] = useState<string>(defaultDriveEmail || "auto");
 
   useEffect(() => {
     setSelectedFolder(defaultFolderId || "root");
   }, [defaultFolderId]);
 
   useEffect(() => {
-    if (activeDriveEmail && activeDriveEmail !== "all") {
+    if (defaultDriveEmail) {
+      setUploadDrive(defaultDriveEmail);
+    } else if (activeDriveEmail && activeDriveEmail !== "all") {
       setUploadDrive(activeDriveEmail);
     } else {
       setUploadDrive("auto");
     }
-  }, [activeDriveEmail]);
+  }, [activeDriveEmail, defaultDriveEmail]);
 
   const availableFolders =
     uploadDrive === "auto"
@@ -220,16 +224,26 @@ export function FileUploader({
             Upload Target Drive:
           </label>
           <CustomDropdown
-            options={[
-              ...(activeDriveEmail === "all"
-                ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }]
-                : []),
-              ...(accounts || []).map((acc) => ({
-                value: acc.email,
-                label: acc.name || acc.email,
-                icon: "📧",
-              })),
-            ]}
+            options={
+              defaultDriveEmail
+                ? (accounts || [])
+                    .filter((acc) => acc.email === defaultDriveEmail)
+                    .map((acc) => ({
+                      value: acc.email,
+                      label: `${acc.name || acc.email} (Default)`,
+                      icon: "⭐",
+                    }))
+                : [
+                    ...(activeDriveEmail === "all"
+                      ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }]
+                      : []),
+                    ...(accounts || []).map((acc) => ({
+                      value: acc.email,
+                      label: acc.name || acc.email,
+                      icon: "📧",
+                    })),
+                  ]
+            }
             value={uploadDrive}
             onChange={setUploadDrive}
           />

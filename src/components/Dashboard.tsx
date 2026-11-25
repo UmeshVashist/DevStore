@@ -44,7 +44,8 @@ export function Dashboard() {
   const [moveModalItems, setMoveModalItems] = useState<DriveItem[]>([]);
 
   // Multiple Google Drives support states
-  const [accounts, setAccounts] = useState<Array<{ email: string; name?: string; connectedAt: string; expired?: boolean }>>([]);
+  const [accounts, setAccounts] = useState<Array<{ email: string; name?: string; connectedAt: string; expired?: boolean; isDefault?: boolean }>>([]);
+  const [defaultDriveEmail, setDefaultDriveEmail] = useState<string | null>(null);
   const [activeDriveEmail, setActiveDriveEmail] = useState<string>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("devdata_active_drive") || "all";
@@ -96,6 +97,7 @@ export function Dashboard() {
         if (data.accounts) {
           setAccounts(data.accounts);
         }
+        setDefaultDriveEmail(data.defaultDriveEmail || null);
       }
     } catch (err) {
       console.error("Error fetching status", err);
@@ -271,7 +273,8 @@ export function Dashboard() {
     const totalBytes = allowedFiles.reduce((acc, f) => acc + f.size, 0);
     let completedBytes = 0;
 
-    const targetEmail = currentFolderDriveEmail || uploadTargetEmail || activeDriveEmail;
+    const targetEmail =
+      defaultDriveEmail || currentFolderDriveEmail || uploadTargetEmail || activeDriveEmail;
 
     try {
       if (withRelativePath) {
@@ -529,8 +532,8 @@ export function Dashboard() {
     slotId = "folder-1"
   ) => uploadFiles(files, folderId, true, driveEmail, slotId);
 
-  const handleCreateFolder = async (name: string, parentId?: string) => {
-    const targetEmail = currentFolderDriveEmail || activeDriveEmail;
+  const handleCreateFolder = async (name: string, parentId?: string, driveEmail?: string) => {
+    const targetEmail = defaultDriveEmail || driveEmail || currentFolderDriveEmail || activeDriveEmail;
     const res = await fetch("/api/folders", {
       method: "POST",
       headers: { 
@@ -1008,6 +1011,7 @@ export function Dashboard() {
               defaultFolderId={currentFolderId}
               accounts={accounts}
               activeDriveEmail={activeDriveEmail}
+              defaultDriveEmail={defaultDriveEmail}
             />
           </div>
         )}
@@ -1022,6 +1026,7 @@ export function Dashboard() {
               onRefresh={fetchAll}
               accounts={accounts}
               activeDriveEmail={activeDriveEmail}
+              defaultDriveEmail={defaultDriveEmail}
             />
           </div>
         )}

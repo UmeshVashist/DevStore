@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { AlertCircle, CheckCircle2, Loader2, Copy, Check, Edit3 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Copy, Check, Edit3, Star } from "lucide-react";
 
 export function GoogleDriveBanner() {
   const [status, setStatus] = useState<{
@@ -70,7 +70,7 @@ function SetupContent() {
     hasClientCredentials: boolean;
     authMode?: "oauth" | "service_account";
     email?: string;
-    accounts?: Array<{ email: string; name?: string; connectedAt: string; expired?: boolean }>;
+    accounts?: Array<{ email: string; name?: string; connectedAt: string; expired?: boolean; isDefault?: boolean }>;
     loading: boolean;
   }>({ connected: false, hasClientCredentials: false, loading: true });
 
@@ -202,6 +202,12 @@ function SetupContent() {
                                 ({acc.email})
                               </span>
                             )}
+                            {acc.isDefault && !acc.expired && (
+                              <span className="bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 inline-flex items-center gap-1">
+                                <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                                Default
+                              </span>
+                            )}
                             {acc.expired && (
                               <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 animate-pulse">
                                 Expired
@@ -248,6 +254,33 @@ function SetupContent() {
                             </a>
                           ) : (
                             <>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch("/api/drive/default", {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ email: acc.isDefault ? null : acc.email }),
+                                    });
+                                    if (res.ok) {
+                                      window.location.reload();
+                                    }
+                                  } catch {}
+                                }}
+                                className={`text-xs px-2.5 py-1.5 rounded-lg transition-all font-bold whitespace-nowrap border flex items-center gap-1 ${
+                                  acc.isDefault
+                                    ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/30"
+                                    : "bg-slate-500/10 hover:bg-amber-500/15 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-300 border-slate-300/30 dark:border-white/10"
+                                }`}
+                                title={
+                                  acc.isDefault
+                                    ? "Default upload drive active (click to reset to Auto)"
+                                    : "Set as Default upload drive"
+                                }
+                              >
+                                <Star className={`w-3.5 h-3.5 ${acc.isDefault ? "fill-amber-500 text-amber-500" : ""}`} />
+                                <span>{acc.isDefault ? "Default" : "Set Default"}</span>
+                              </button>
                               <button
                                 onClick={async () => {
                                   try {

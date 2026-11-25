@@ -13,8 +13,9 @@ interface FolderPanelProps {
   onCreateFolder: (name: string, parentId?: string, driveEmail?: string) => Promise<void>;
   onUploadFolder: (files: FileList | File[], folderId: string, driveEmail?: string, slotId?: string) => Promise<void>;
   onRefresh: () => void;
-  accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
+  accounts?: Array<{ email: string; name?: string; connectedAt: string; isDefault?: boolean }>;
   activeDriveEmail?: string;
+  defaultDriveEmail?: string | null;
 }
 
 export function FolderPanel({
@@ -24,6 +25,7 @@ export function FolderPanel({
   onUploadFolder,
   accounts = [],
   activeDriveEmail = "all",
+  defaultDriveEmail = null,
 }: FolderPanelProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [folderName, setFolderName] = useState("");
@@ -32,18 +34,21 @@ export function FolderPanel({
   const [createParentId, setCreateParentId] = useState("root");
 
   // Local target drive states for folder uploading & creation
-  const [uploadDrive, setUploadDrive] = useState<string>("auto");
-  const [createDrive, setCreateDrive] = useState<string>("auto");
+  const [uploadDrive, setUploadDrive] = useState<string>(defaultDriveEmail || "auto");
+  const [createDrive, setCreateDrive] = useState<string>(defaultDriveEmail || "auto");
 
   useEffect(() => {
-    if (activeDriveEmail && activeDriveEmail !== "all") {
+    if (defaultDriveEmail) {
+      setUploadDrive(defaultDriveEmail);
+      setCreateDrive(defaultDriveEmail);
+    } else if (activeDriveEmail && activeDriveEmail !== "all") {
       setUploadDrive(activeDriveEmail);
       setCreateDrive(activeDriveEmail);
     } else {
       setUploadDrive("auto");
       setCreateDrive("auto");
     }
-  }, [activeDriveEmail]);
+  }, [activeDriveEmail, defaultDriveEmail]);
 
   const availableUploadFolders =
     uploadDrive === "auto"
@@ -173,16 +178,26 @@ export function FolderPanel({
             Upload Target Drive:
           </label>
           <CustomDropdown
-            options={[
-              ...(activeDriveEmail === "all"
-                ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }]
-                : []),
-              ...(accounts || []).map((acc) => ({
-                value: acc.email,
-                label: acc.name || acc.email,
-                icon: "📧",
-              })),
-            ]}
+            options={
+              defaultDriveEmail
+                ? (accounts || [])
+                    .filter((acc) => acc.email === defaultDriveEmail)
+                    .map((acc) => ({
+                      value: acc.email,
+                      label: `${acc.name || acc.email} (Default)`,
+                      icon: "⭐",
+                    }))
+                : [
+                    ...(activeDriveEmail === "all"
+                      ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }]
+                      : []),
+                    ...(accounts || []).map((acc) => ({
+                      value: acc.email,
+                      label: acc.name || acc.email,
+                      icon: "📧",
+                    })),
+                  ]
+            }
             value={uploadDrive}
             onChange={setUploadDrive}
           />
@@ -213,16 +228,26 @@ export function FolderPanel({
                 Create Target Drive:
               </label>
               <CustomDropdown
-                options={[
-                  ...(activeDriveEmail === "all"
-                    ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }]
-                    : []),
-                  ...(accounts || []).map((acc) => ({
-                    value: acc.email,
-                    label: acc.name || acc.email,
-                    icon: "📧",
-                  })),
-                ]}
+                options={
+                  defaultDriveEmail
+                    ? (accounts || [])
+                        .filter((acc) => acc.email === defaultDriveEmail)
+                        .map((acc) => ({
+                          value: acc.email,
+                          label: `${acc.name || acc.email} (Default)`,
+                          icon: "⭐",
+                        }))
+                    : [
+                        ...(activeDriveEmail === "all"
+                          ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }]
+                          : []),
+                        ...(accounts || []).map((acc) => ({
+                          value: acc.email,
+                          label: acc.name || acc.email,
+                          icon: "📧",
+                        })),
+                      ]
+                }
                 value={createDrive}
                 onChange={setCreateDrive}
               />

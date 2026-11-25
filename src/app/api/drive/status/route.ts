@@ -39,18 +39,23 @@ export async function GET() {
     name: acc.name || acc.email,
     connectedAt: acc.connected_at,
     expired: acc.expired || false,
+    isDefault: Boolean(acc.isDefault),
   }));
+
+  const defaultDriveEmail =
+    accounts.find((acc) => acc.isDefault && !acc.expired)?.email || null;
 
   const primaryEmail =
     authMode === "service_account"
       ? getServiceAccountEmail()
-      : accounts[0]?.email || undefined;
+      : defaultDriveEmail || accounts[0]?.email || undefined;
 
   return NextResponse.json({
     connected,
     hasClientCredentials: hasOAuthClientCredentials(),
     authMode,
     email: primaryEmail,
+    defaultDriveEmail,
     accounts: formattedAccounts,
     folderId: process.env.GOOGLE_DRIVE_FOLDER_ID || null,
   });

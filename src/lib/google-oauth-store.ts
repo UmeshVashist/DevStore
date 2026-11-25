@@ -10,6 +10,7 @@ export interface GoogleOAuthStore {
   connected_at: string;
   name?: string;
   expired?: boolean;
+  isDefault?: boolean;
 }
 
 export interface GoogleOAuthStoreMulti {
@@ -100,6 +101,10 @@ export function getStoredAccounts(userId?: string): GoogleOAuthStore[] {
         if (localAcc.expired) {
           newAcc.expired = true;
         }
+        if (typeof localAcc.isDefault === "boolean" && localAcc.isDefault !== newAcc.isDefault) {
+          newAcc.isDefault = localAcc.isDefault;
+          updated = true;
+        }
         if (localAcc.connected_at) {
           const localTime = new Date(localAcc.connected_at).getTime();
           const clerkTime = new Date(acc.connected_at || 0).getTime();
@@ -185,6 +190,7 @@ export async function saveRefreshToken(refreshToken: string, email?: string, use
     name: existingAccount?.name || undefined,
     connected_at: new Date().toISOString(),
     expired: false,
+    isDefault: existingAccount?.isDefault || false,
   };
 
   if (existingIndex >= 0) {
@@ -406,6 +412,61 @@ export async function refreshAccountSession(email?: string, userId?: string): Pr
 
   try {
     const data: GoogleOAuthStoreMulti = { accounts };
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch {}
+
+  return true;
+}
+
+export function getDefaultAccountEmail(userId?: string): string | undefined {
+  const accounts = getStoredAccounts(userId);
+  const def = accounts.find((acc) => acc.isDefault && !acc.expired);
+  return def?.email;
+}
+
+export async function setDefaultAccount(email: string | null, userId?: string): Promise<boolean> {
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    try {
+      const authSession = await auth();
+      resolvedUserId = authSession.userId || undefined;
+    } catch {}
+  }
+
+  const accounts = getStoredAccounts(resolvedUserId);
+  if (accounts.length === 0) return false;
+
+  if (email !== null) {
+    const exists = accounts.some(
+      (acc) => acc.email && acc.email.toLowerCase() === email.toLowerCase()
+    );
+    if (!exists) return false;
+  }
+
+  const updatedAccounts = accounts.map((acc) => ({
+    ...acc,
+    isDefault:
+      email !== null && acc.email
+        ? acc.email.toLowerCase() === email.toLowerCase()
+        : false,
+  }));
+
+  if (resolvedUserId) {
+    accountsCache.set(resolvedUserId, updatedAccounts);
+    try {
+      const client = await clerkClient();
+      await client.users.updateUserMetadata(resolvedUserId, {
+        privateMetadata: {
+          googleAccounts: updatedAccounts,
+        },
+      });
+    } catch (err) {
+      console.error("Failed to save default drive in Clerk metadata:", err);
+    }
+  }
+
+  try {
+    const data: GoogleOAuthStoreMulti = { accounts: updatedAccounts };
     fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), "utf-8");
   } catch {}
 
