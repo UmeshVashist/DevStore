@@ -941,13 +941,30 @@ export function Dashboard() {
   const handleOpenFolder = (folder: DriveFolder) => {
     setCurrentFolderId(folder.id);
     setCurrentFolderDriveEmail(folder.driveEmail);
-    setBreadcrumb((prev) => [...prev, { id: folder.id, name: folder.name, driveEmail: folder.driveEmail }]);
-    setActiveTab("files");
+    setFileSearchQuery("");
+    setFolderSearchQuery("");
+    setGlobalSearchFiles(null);
     setSelectedIds(new Set());
+    setActiveTab("files");
+
+    // Build full breadcrumb path from allFolders so jumping to a nested folder from search works cleanly
+    const folderMap = new Map(allFolders.map((f) => [f.id, f]));
+    const path: { id: string; name: string; driveEmail?: string }[] = [];
+    let current: DriveFolder | undefined = folder;
+    const visited = new Set<string>();
+    while (current && !visited.has(current.id)) {
+      visited.add(current.id);
+      path.unshift({ id: current.id, name: current.name, driveEmail: current.driveEmail });
+      current = current.parentId ? folderMap.get(current.parentId) : undefined;
+    }
+    setBreadcrumb(path);
   };
 
   const handleNavigate = (folderId: string | null) => {
     setCurrentFolderId(folderId);
+    setFileSearchQuery("");
+    setFolderSearchQuery("");
+    setGlobalSearchFiles(null);
     setSelectedIds(new Set());
     if (!folderId) {
       setBreadcrumb([]);
