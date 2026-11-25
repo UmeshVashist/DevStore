@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FolderOpen, Trash2, Search, Loader2 } from "lucide-react";
+import { FolderOpen, Trash2, Search, FolderSearch, Loader2, X } from "lucide-react";
 import { DriveFile, DriveFolder, DriveItem, isDriveFolder } from "@/lib/file-types";
 import { FileCard } from "./FileCard";
 import { FolderCard } from "./FolderCard";
@@ -49,14 +49,29 @@ export function FileGrid({
   accounts = [],
   showDriveBadge = false,
 }: FileGridProps) {
-  const [search, setSearch] = useState("");
+  const [fileSearch, setFileSearch] = useState("");
+  const [folderSearch, setFolderSearch] = useState("");
   const recentMap = useRecentActivity();
 
-  const filtered = items.filter((item) =>
-    item.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const fileQuery = fileSearch.trim().toLowerCase();
+  const folderQuery = folderSearch.trim().toLowerCase();
+
+  const filtered = items.filter((item) => {
+    const isFolder = isDriveFolder(item);
+    if (!fileQuery && !folderQuery) return true;
+    if (fileQuery && !folderQuery) {
+      return !isFolder && item.name.toLowerCase().includes(fileQuery);
+    }
+    if (!fileQuery && folderQuery) {
+      return isFolder && item.name.toLowerCase().includes(folderQuery);
+    }
+    return isFolder
+      ? item.name.toLowerCase().includes(folderQuery)
+      : item.name.toLowerCase().includes(fileQuery);
+  });
 
   const anySelected = (selectedIds?.size || 0) > 0;
+  const hasAnySearch = Boolean(fileQuery || folderQuery);
 
   if (loading) {
     return (
@@ -69,15 +84,49 @@ export function FileGrid({
 
   return (
     <div>
-      <div className="relative mb-6">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Search files and folders..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="glass-neo-input w-full pl-11 pr-4 py-2.5 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl outline-none border border-slate-200/50 dark:border-white/10 shadow-inner font-semibold"
-        />
+      {/* Dual Search Bars: 1 for Files/Data, 1 for Folders */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500 dark:text-indigo-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search files / data..."
+            value={fileSearch}
+            onChange={(e) => setFileSearch(e.target.value)}
+            className="glass-neo-input w-full pl-11 pr-9 py-2.5 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl outline-none border border-slate-200/50 dark:border-white/10 shadow-inner font-semibold"
+          />
+          {fileSearch && (
+            <button
+              type="button"
+              onClick={() => setFileSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+              title="Clear file search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="relative">
+          <FolderSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500 dark:text-purple-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search folders..."
+            value={folderSearch}
+            onChange={(e) => setFolderSearch(e.target.value)}
+            className="glass-neo-input w-full pl-11 pr-9 py-2.5 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl outline-none border border-slate-200/50 dark:border-white/10 shadow-inner font-semibold"
+          />
+          {folderSearch && (
+            <button
+              type="button"
+              onClick={() => setFolderSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+              title="Clear folder search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -91,7 +140,9 @@ export function FileGrid({
           ) : (
             <FolderOpen className="w-12 h-12 text-slate-400 dark:text-white/30 mx-auto mb-4" />
           )}
-          <p className="text-slate-500 dark:text-white/50 font-semibold">{search ? "No matching items found" : emptyMessage}</p>
+          <p className="text-slate-500 dark:text-white/50 font-semibold">
+            {hasAnySearch ? "No matching items found" : emptyMessage}
+          </p>
         </motion.div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

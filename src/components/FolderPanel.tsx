@@ -9,9 +9,9 @@ import { CustomDropdown } from "./CustomDropdown";
 
 interface FolderPanelProps {
   folders: DriveFolder[];
-  uploading: boolean;
+  uploadSlots: Record<string, number>;
   onCreateFolder: (name: string, parentId?: string, driveEmail?: string) => Promise<void>;
-  onUploadFolder: (files: FileList | File[], folderId: string, driveEmail?: string) => Promise<void>;
+  onUploadFolder: (files: FileList | File[], folderId: string, driveEmail?: string, slotId?: string) => Promise<void>;
   onRefresh: () => void;
   accounts?: Array<{ email: string; name?: string; connectedAt: string }>;
   activeDriveEmail?: string;
@@ -19,7 +19,7 @@ interface FolderPanelProps {
 
 export function FolderPanel({
   folders,
-  uploading,
+  uploadSlots,
   onCreateFolder,
   onUploadFolder,
   accounts = [],
@@ -45,16 +45,16 @@ export function FolderPanel({
     }
   }, [activeDriveEmail]);
 
-  // Filter folders according to target drives (if "auto", show all folders)
-  const availableUploadFolders = uploadDrive === "auto"
-    ? folders
-    : folders.filter((f) => f.driveEmail === uploadDrive);
+  const availableUploadFolders =
+    uploadDrive === "auto"
+      ? folders
+      : folders.filter((f) => f.driveEmail === uploadDrive);
 
-  const availableCreateFolders = createDrive === "auto"
-    ? folders
-    : folders.filter((f) => f.driveEmail === createDrive);
+  const availableCreateFolders =
+    createDrive === "auto"
+      ? folders
+      : folders.filter((f) => f.driveEmail === createDrive);
 
-  // If selected folder is not in filtered folders, reset to root
   useEffect(() => {
     if (uploadTarget !== "root" && !availableUploadFolders.some((f) => f.id === uploadTarget)) {
       setUploadTarget("root");
@@ -73,9 +73,12 @@ export function FolderPanel({
     setCreating(true);
     try {
       const targetParent = createParentId === "root" ? undefined : createParentId;
-      const targetEmail = createParentId !== "root"
-        ? folders.find(f => f.id === createParentId)?.driveEmail
-        : (createDrive === "auto" ? undefined : createDrive);
+      const targetEmail =
+        createParentId !== "root"
+          ? folders.find((f) => f.id === createParentId)?.driveEmail
+          : createDrive === "auto"
+          ? undefined
+          : createDrive;
       await onCreateFolder(folderName.trim(), targetParent, targetEmail);
       setFolderName("");
       setShowCreate(false);
@@ -85,13 +88,20 @@ export function FolderPanel({
     }
   };
 
-  const handleFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFolderUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    slotId: string
+  ) => {
     if (e.target.files && e.target.files.length > 0) {
-      const folderEmail = uploadTarget !== "root"
-        ? folders.find(f => f.id === uploadTarget)?.driveEmail
-        : (uploadDrive === "auto" ? undefined : uploadDrive);
-      await onUploadFolder(e.target.files, uploadTarget, folderEmail);
+      const files = Array.from(e.target.files);
       e.target.value = "";
+      const folderEmail =
+        uploadTarget !== "root"
+          ? folders.find((f) => f.id === uploadTarget)?.driveEmail
+          : uploadDrive === "auto"
+          ? undefined
+          : uploadDrive;
+      await onUploadFolder(files, uploadTarget, folderEmail, slotId);
     }
   };
 
@@ -103,31 +113,50 @@ export function FolderPanel({
     >
       <h2 className="text-slate-800 dark:text-white font-bold text-lg mb-4">Folder Management</h2>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <button
           onClick={() => setShowCreate(true)}
-          className="btn-primary flex items-center justify-center gap-2 flex-1 py-3 rounded-xl shadow-neumorph-btn hover:shadow-neumorph-out font-bold text-white transition-all"
+          className="btn-primary flex items-center justify-center gap-2 py-3 rounded-xl shadow-neumorph-btn hover:shadow-neumorph-out font-bold text-white transition-all"
         >
           <FolderPlus className="w-5 h-5" />
           Create Folder
         </button>
 
-        <label className="glass-neo-btn flex items-center justify-center gap-2 flex-1 cursor-pointer border border-slate-200/50 dark:border-white/10 text-slate-700 dark:text-slate-200 py-3 rounded-xl hover:shadow-neumorph-out transition-all font-bold">
-          <input
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleFolderUpload}
-            disabled={uploading}
-            {...({ webkitdirectory: "", directory: "" } as React.InputHTMLAttributes<HTMLInputElement>)}
-          />
-          {uploading ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <FolderUp className="w-5 h-5" />
-          )}
-          Upload Folder
-        </label>
+        {["panel-folder-1", "panel-folder-2"].map((slotId, idx) => {
+          const progress = uploadSlots[slotId];
+          const isUploadingSlot = progress !== undefined;
+          return (
+            <label
+              key={slotId}
+              className={`glass-neo-btn flex items-center justify-center gap-2 cursor-pointer border border-slate-200/50 dark:border-white/10 text-slate-700 dark:text-slate-200 py-3 rounded-xl hover:shadow-neumorph-out transition-all font-bold ${
+                isUploadingSlot ? "pointer-events-none opacity-80" : ""
+              }`}
+            >
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFolderUpload(e, slotId)}
+                disabled={isUploadingSlot}
+                {...({
+                  webkitdirectory: "",
+                  directory: "",
+                } as React.InputHTMLAttributes<HTMLInputElement>)}
+              />
+              {isUploadingSlot ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+                  <span>Uploading {idx + 1}... ({progress}%)</span>
+                </>
+              ) : (
+                <>
+                  <FolderUp className="w-5 h-5 text-purple-500" />
+                  <span>Upload Folder {idx + 1}</span>
+                </>
+              )}
+            </label>
+          );
+        })}
       </div>
 
       <div className="flex flex-col md:flex-row items-end gap-4 w-full">
@@ -145,7 +174,9 @@ export function FolderPanel({
           </label>
           <CustomDropdown
             options={[
-              ...(activeDriveEmail === "all" ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }] : []),
+              ...(activeDriveEmail === "all"
+                ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }]
+                : []),
               ...(accounts || []).map((acc) => ({
                 value: acc.email,
                 label: acc.name || acc.email,
@@ -159,7 +190,7 @@ export function FolderPanel({
       </div>
 
       <p className="text-slate-400 dark:text-slate-500 text-xs font-semibold mt-2">
-        Uploading a folder preserves all subfolders and files inside it.
+        Uploading a folder preserves all subfolders and files inside it. You can upload 2 folders simultaneously.
       </p>
 
       {showCreate && (
@@ -183,7 +214,9 @@ export function FolderPanel({
               </label>
               <CustomDropdown
                 options={[
-                  ...(activeDriveEmail === "all" ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }] : []),
+                  ...(activeDriveEmail === "all"
+                    ? [{ value: "auto", label: "Auto (Most Free Space)", icon: "⚡" }]
+                    : []),
                   ...(accounts || []).map((acc) => ({
                     value: acc.email,
                     label: acc.name || acc.email,

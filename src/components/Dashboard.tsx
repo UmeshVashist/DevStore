@@ -23,8 +23,7 @@ export function Dashboard() {
   const [allFolders, setAllFolders] = useState<DriveFolder[]>([]);
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState<"files" | "folder" | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadSlots, setUploadSlots] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<DashboardTab>("files");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string; driveEmail?: string }[]>([]);
@@ -185,10 +184,10 @@ export function Dashboard() {
     fileList: FileList | File[],
     folderId: string,
     withRelativePath = false,
-    uploadTargetEmail?: string
+    uploadTargetEmail?: string,
+    slotId = "files-1"
   ) => {
-    setUploading(withRelativePath ? "folder" : "files");
-    setUploadProgress(0);
+    setUploadSlots((prev) => ({ ...prev, [slotId]: 0 }));
     let successCount = 0;
     const resolvedMap = new Map<string, string>();
     const filesArray = Array.from(fileList);
@@ -215,8 +214,11 @@ export function Dashboard() {
       if (skippedCount > 0) {
         showToast("error", `${skippedCount} file(s) skipped (unsupported format)`);
       }
-      setUploading(null);
-      setUploadProgress(0);
+      setUploadSlots((prev) => {
+        const next = { ...prev };
+        delete next[slotId];
+        return next;
+      });
       return;
     }
 
@@ -349,7 +351,7 @@ export function Dashboard() {
                     99,
                     Math.round((completedBytes / (totalBytes || 1)) * 100)
                   );
-                  setUploadProgress(percent);
+                  setUploadSlots((prev) => ({ ...prev, [slotId]: percent }));
                 }
               };
 
@@ -435,7 +437,7 @@ export function Dashboard() {
             100,
             Math.round((completedBytes / (totalBytes || 1)) * 100)
           );
-          setUploadProgress(percent);
+          setUploadSlots((prev) => ({ ...prev, [slotId]: percent }));
         }
       };
 
@@ -459,16 +461,27 @@ export function Dashboard() {
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : "Failed to upload folder");
     } finally {
-      setUploading(null);
-      setUploadProgress(0);
+      setUploadSlots((prev) => {
+        const next = { ...prev };
+        delete next[slotId];
+        return next;
+      });
     }
   };
 
-  const handleUpload = (files: FileList | File[], folderId: string, driveEmail?: string) =>
-    uploadFiles(files, folderId, false, driveEmail);
+  const handleUpload = (
+    files: FileList | File[],
+    folderId: string,
+    driveEmail?: string,
+    slotId = "files-1"
+  ) => uploadFiles(files, folderId, false, driveEmail, slotId);
 
-  const handleUploadFolder = (files: FileList | File[], folderId: string, driveEmail?: string) =>
-    uploadFiles(files, folderId, true, driveEmail);
+  const handleUploadFolder = (
+    files: FileList | File[],
+    folderId: string,
+    driveEmail?: string,
+    slotId = "folder-1"
+  ) => uploadFiles(files, folderId, true, driveEmail, slotId);
 
   const handleCreateFolder = async (name: string, parentId?: string) => {
     const targetEmail = currentFolderDriveEmail || activeDriveEmail;
@@ -928,8 +941,7 @@ export function Dashboard() {
               folders={allFolders}
               onUpload={handleUpload}
               onUploadFolder={handleUploadFolder}
-              uploadingType={uploading}
-              uploadProgress={uploadProgress}
+              uploadSlots={uploadSlots}
               defaultFolderId={currentFolderId}
               accounts={accounts}
               activeDriveEmail={activeDriveEmail}
@@ -941,7 +953,7 @@ export function Dashboard() {
           <div className="relative z-40">
             <FolderPanel
               folders={allFolders}
-              uploading={uploading !== null}
+              uploadSlots={uploadSlots}
               onCreateFolder={handleCreateFolder}
               onUploadFolder={handleUploadFolder}
               onRefresh={fetchAll}
