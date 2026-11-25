@@ -10,6 +10,13 @@ import { useRecentActivity } from "@/lib/recent-activity";
 
 interface FileGridProps {
   items: DriveItem[];
+  allFolders?: DriveFolder[];
+  globalSearchFiles?: DriveFile[] | null;
+  searchingFiles?: boolean;
+  fileSearch?: string;
+  onFileSearchChange?: (value: string) => void;
+  folderSearch?: string;
+  onFolderSearchChange?: (value: string) => void;
   loading: boolean;
   onPreview: (file: DriveFile) => void;
   onDownload: (item: DriveItem) => void;
@@ -31,6 +38,13 @@ interface FileGridProps {
 
 export function FileGrid({
   items,
+  allFolders,
+  globalSearchFiles = null,
+  searchingFiles = false,
+  fileSearch: controlledFileSearch,
+  onFileSearchChange,
+  folderSearch: controlledFolderSearch,
+  onFolderSearchChange,
   loading,
   onPreview,
   onDownload,
@@ -49,26 +63,50 @@ export function FileGrid({
   accounts = [],
   showDriveBadge = false,
 }: FileGridProps) {
-  const [fileSearch, setFileSearch] = useState("");
-  const [folderSearch, setFolderSearch] = useState("");
+  const [localFileSearch, setLocalFileSearch] = useState("");
+  const [localFolderSearch, setLocalFolderSearch] = useState("");
   const recentMap = useRecentActivity();
+
+  const fileSearch = controlledFileSearch !== undefined ? controlledFileSearch : localFileSearch;
+  const setFileSearch = onFileSearchChange || setLocalFileSearch;
+  const folderSearch = controlledFolderSearch !== undefined ? controlledFolderSearch : localFolderSearch;
+  const setFolderSearch = onFolderSearchChange || setLocalFolderSearch;
 
   const fileQuery = fileSearch.trim().toLowerCase();
   const folderQuery = folderSearch.trim().toLowerCase();
 
-  const filtered = items.filter((item) => {
-    const isFolder = isDriveFolder(item);
-    if (!fileQuery && !folderQuery) return true;
-    if (fileQuery && !folderQuery) {
-      return !isFolder && item.name.toLowerCase().includes(fileQuery);
-    }
-    if (!fileQuery && folderQuery) {
-      return isFolder && item.name.toLowerCase().includes(folderQuery);
-    }
-    return isFolder
-      ? item.name.toLowerCase().includes(folderQuery)
-      : item.name.toLowerCase().includes(fileQuery);
-  });
+  let filtered: DriveItem[];
+  if (!fileQuery && !folderQuery) {
+    filtered = items;
+  } else if (isTrash) {
+    filtered = items.filter((item) => {
+      const isFolder = isDriveFolder(item);
+      if (fileQuery && !folderQuery) {
+        return !isFolder && item.name.toLowerCase().includes(fileQuery);
+      }
+      if (!fileQuery && folderQuery) {
+        return isFolder && item.name.toLowerCase().includes(folderQuery);
+      }
+      return isFolder
+        ? item.name.toLowerCase().includes(folderQuery)
+        : item.name.toLowerCase().includes(fileQuery);
+    });
+  } else {
+    // Global search across all nested folders and files
+    const matchedFiles: DriveItem[] = fileQuery
+      ? (globalSearchFiles !== null
+          ? globalSearchFiles
+          : items.filter((i) => !isDriveFolder(i))
+        ).filter((f) => f.name.toLowerCase().includes(fileQuery))
+      : [];
+
+    const folderSource: DriveFolder[] = allFolders ?? items.filter(isDriveFolder);
+    const matchedFolders: DriveItem[] = folderQuery
+      ? folderSource.filter((f) => f.name.toLowerCase().includes(folderQuery))
+      : [];
+
+    filtered = [...matchedFolders, ...matchedFiles];
+  }
 
   const anySelected = (selectedIds?.size || 0) > 0;
   const hasAnySearch = Boolean(fileQuery || folderQuery);
@@ -84,26 +122,30 @@ export function FileGrid({
 
   return (
     <div>
-      {/* Dual Search Bars: 1 for Files/Data, 1 for Folders */}
+      {/* Dual Search Bars: 1 for Files/Data (global), 1 for Folders (global) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500 dark:text-indigo-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search files / data..."
+            placeholder="Search files / data (all folders)..."
             value={fileSearch}
             onChange={(e) => setFileSearch(e.target.value)}
             className="glass-neo-input w-full pl-11 pr-9 py-2.5 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl outline-none border border-slate-200/50 dark:border-white/10 shadow-inner font-semibold"
           />
-          {fileSearch && (
-            <button
-              type="button"
-              onClick={() => setFileSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
-              title="Clear file search"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          {searchingFiles ? (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 animate-spin" />
+          ) : (
+            fileSearch && (
+              <button
+                type="button"
+                onClick={() => setFileSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                title="Clear file search"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )
           )}
         </div>
 
@@ -111,7 +153,7 @@ export function FileGrid({
           <FolderSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500 dark:text-purple-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search folders..."
+            placeholder="Search folders (all levels)..."
             value={folderSearch}
             onChange={(e) => setFolderSearch(e.target.value)}
             className="glass-neo-input w-full pl-11 pr-9 py-2.5 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl outline-none border border-slate-200/50 dark:border-white/10 shadow-inner font-semibold"
@@ -129,7 +171,14 @@ export function FileGrid({
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {searchingFiles && fileQuery && filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+          <p className="text-slate-500 dark:text-white/50 font-semibold text-sm">
+            Searching files across all folders...
+          </p>
+        </div>
+      ) : filtered.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

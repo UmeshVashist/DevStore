@@ -24,6 +24,10 @@ export function Dashboard() {
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadSlots, setUploadSlots] = useState<Record<string, number>>({});
+  const [fileSearchQuery, setFileSearchQuery] = useState("");
+  const [folderSearchQuery, setFolderSearchQuery] = useState("");
+  const [globalSearchFiles, setGlobalSearchFiles] = useState<DriveFile[] | null>(null);
+  const [searchingFiles, setSearchingFiles] = useState(false);
   const [activeTab, setActiveTab] = useState<DashboardTab>("files");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string; driveEmail?: string }[]>([]);
@@ -179,6 +183,48 @@ export function Dashboard() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  // Global recursive file search across all nested folders
+  useEffect(() => {
+    const trimmed = fileSearchQuery.trim();
+    if (!trimmed || activeTab === "trash") {
+      setGlobalSearchFiles(null);
+      setSearchingFiles(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setSearchingFiles(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const targetEmail = activeDriveEmail || "all";
+        const url = `/api/files?search=${encodeURIComponent(trimmed)}&driveEmail=${encodeURIComponent(targetEmail)}&t=${Date.now()}`;
+        const res = await fetch(url, {
+          headers: targetEmail ? { "x-drive-email": targetEmail } : {},
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setGlobalSearchFiles(data.items || []);
+        }
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          console.error("Global file search error:", err);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setSearchingFiles(false);
+        }
+      }
+    }, 280);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [fileSearchQuery, activeDriveEmail, activeTab]);
 
   const uploadFiles = async (
     fileList: FileList | File[],
@@ -978,6 +1024,13 @@ export function Dashboard() {
         {activeTab === "files" ? (
           <FileGrid
             items={items}
+            allFolders={allFolders}
+            globalSearchFiles={globalSearchFiles}
+            searchingFiles={searchingFiles}
+            fileSearch={fileSearchQuery}
+            onFileSearchChange={setFileSearchQuery}
+            folderSearch={folderSearchQuery}
+            onFolderSearchChange={setFolderSearchQuery}
             loading={loading}
             onPreview={handlePreview}
             onDownload={handleDownload}
@@ -1001,8 +1054,15 @@ export function Dashboard() {
         ) : activeTab === "folders" ? (
           <FileGrid
             items={allFolders.filter((f) => !allFolders.some((p) => p.id === f.parentId))}
+            allFolders={allFolders}
+            globalSearchFiles={globalSearchFiles}
+            searchingFiles={searchingFiles}
+            fileSearch={fileSearchQuery}
+            onFileSearchChange={setFileSearchQuery}
+            folderSearch={folderSearchQuery}
+            onFolderSearchChange={setFolderSearchQuery}
             loading={loading}
-            onPreview={() => {}}
+            onPreview={handlePreview}
             onDownload={handleDownload}
             onDelete={handleDelete}
             onOpenFolder={(folder) => {

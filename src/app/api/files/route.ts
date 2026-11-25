@@ -4,6 +4,7 @@ import { Readable } from "stream";
 import { ALLOWED_MIME_TYPES, FILE_EXTENSIONS, MAX_FILE_SIZE_MB } from "@/lib/constants";
 import {
   listBrowseItems,
+  searchUserFiles,
   uploadFile,
   uploadFileWithRelativePath,
   purgeExpiredTrash,
@@ -29,7 +30,10 @@ export async function GET(request: NextRequest) {
       console.error("Background trash purge error:", err);
     });
     const folderId = request.nextUrl.searchParams.get("folderId") || undefined;
-    const items = await listBrowseItems(userId, folderId, driveEmail);
+    const search = request.nextUrl.searchParams.get("search")?.trim();
+    const items = search
+      ? await searchUserFiles(userId, search, driveEmail)
+      : await listBrowseItems(userId, folderId, driveEmail);
 
     return NextResponse.json({ items });
   } catch (error) {

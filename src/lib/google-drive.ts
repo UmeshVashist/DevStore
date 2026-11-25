@@ -455,6 +455,82 @@ async function listSingleBrowseItems(
   return items;
 }
 
+export async function searchUserFiles(
+  userId: string,
+  query: string,
+  driveEmail?: string
+): Promise<DriveFile[]> {
+  try {
+    if (driveEmail && driveEmail !== "all") {
+      const accounts = getStoredAccounts(userId);
+      const matched = accounts.find(a => a.email?.toLowerCase() === driveEmail.toLowerCase());
+      if (matched?.expired) {
+        throw new Error("invalid_grant");
+      }
+    }
+
+    if (driveEmail === "all") {
+      await fetchAndCacheAccounts(userId);
+      const accounts = getStoredAccounts(userId);
+      if (accounts.length === 0) {
+        return searchSingleUserFiles(userId, query);
+      }
+
+      const results = await Promise.all(
+        accounts.map(async (acc) => {
+          if (acc.expired) return [];
+          try {
+            return await searchSingleUserFiles(userId, query, acc.email);
+          } catch (err) {
+            console.error(`Error searching files for ${acc.email}:`, err);
+            await handleDriveError(err, acc.email, userId);
+            return [];
+          }
+        })
+      );
+
+      return results.flat().sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return await searchSingleUserFiles(userId, query, driveEmail);
+  } catch (err) {
+    if (driveEmail) {
+      await handleDriveError(err, driveEmail, userId);
+    }
+    throw err;
+  }
+}
+
+async function searchSingleUserFiles(
+  userId: string,
+  query: string,
+  driveEmail?: string
+): Promise<DriveFile[]> {
+  const drive = getDriveClient(driveEmail, userId);
+  const { filesFolderId } = await getUserFolders(userId, driveEmail);
+  const allFolders = await listSingleAllUserFolders(userId, driveEmail);
+  const validParentIds = new Set<string>([filesFolderId, ...allFolders.map((f) => f.id)]);
+
+  const escapedQuery = query.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const res = await drive.files.list({
+    ...DRIVE_LIST_OPTS,
+    q: `trashed=false and mimeType!='${FOLDER_MIME}' and name contains '${escapedQuery}'`,
+    fields: "files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,webContentLink,parents)",
+    orderBy: "name",
+    pageSize: 200,
+  });
+
+  const matchedFiles: DriveFile[] = [];
+  for (const file of res.data.files || []) {
+    const parents = file.parents || [];
+    if (parents.some((pid) => validParentIds.has(pid))) {
+      matchedFiles.push(mapDriveFile(file, driveEmail));
+    }
+  }
+
+  return matchedFiles;
+}
+
 export async function listAllUserFolders(userId: string, driveEmail?: string): Promise<DriveFolder[]> {
   try {
     if (driveEmail && driveEmail !== "all") {
